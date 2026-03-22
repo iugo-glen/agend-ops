@@ -12,7 +12,11 @@ Offload cognitive load — Claude handles email triage and task execution so Gle
 
 ### Validated
 
-(None yet — ship to validate)
+- Google OAuth 2.0 configured in PRODUCTION mode (Internal user type) — Phase 1
+- Hardened Google Workspace MCP server installed and verified (no send/share/filter) — Phase 1
+- NDJSON data schemas defined (feed, triage, task records) — Phase 1
+- CLAUDE.md with custom commands (/status, /task, /feed, /triage-inbox) — Phase 1
+- Git repo directory structure established (data/, docs/, scripts/, schemas/) — Phase 1
 
 ### Active
 
@@ -82,4 +86,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after initialization*
+*Last updated: 2026-03-23 after Phase 1 completion*
