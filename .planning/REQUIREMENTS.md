@@ -89,34 +89,34 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase ? | Pending |
-| FOUND-02 | Phase ? | Pending |
-| FOUND-03 | Phase ? | Pending |
-| FOUND-04 | Phase ? | Pending |
-| FOUND-05 | Phase ? | Pending |
-| EMAIL-01 | Phase ? | Pending |
-| EMAIL-02 | Phase ? | Pending |
-| EMAIL-03 | Phase ? | Pending |
-| EMAIL-04 | Phase ? | Pending |
-| EMAIL-05 | Phase ? | Pending |
-| EMAIL-06 | Phase ? | Pending |
-| EMAIL-07 | Phase ? | Pending |
-| EMAIL-08 | Phase ? | Pending |
-| TASK-01 | Phase ? | Pending |
-| TASK-02 | Phase ? | Pending |
-| TASK-03 | Phase ? | Pending |
-| TASK-04 | Phase ? | Pending |
-| TASK-05 | Phase ? | Pending |
-| VIS-01 | Phase ? | Pending |
-| VIS-02 | Phase ? | Pending |
-| VIS-03 | Phase ? | Pending |
-| VIS-04 | Phase ? | Pending |
+| FOUND-01 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Pending |
+| FOUND-03 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Pending |
+| FOUND-05 | Phase 1 | Pending |
+| EMAIL-01 | Phase 2 | Pending |
+| EMAIL-02 | Phase 2 | Pending |
+| EMAIL-03 | Phase 2 | Pending |
+| EMAIL-04 | Phase 2 | Pending |
+| EMAIL-05 | Phase 2 | Pending |
+| EMAIL-06 | Phase 2 | Pending |
+| EMAIL-07 | Phase 2 | Pending |
+| EMAIL-08 | Phase 2 | Pending |
+| TASK-01 | Phase 3 | Pending |
+| TASK-02 | Phase 3 | Pending |
+| TASK-03 | Phase 3 | Pending |
+| TASK-04 | Phase 3 | Pending |
+| TASK-05 | Phase 3 | Pending |
+| VIS-01 | Phase 4 | Pending |
+| VIS-02 | Phase 4 | Pending |
+| VIS-03 | Phase 4 | Pending |
+| VIS-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 22 total
-- Mapped to phases: 0
-- Unmapped: 22
+- Mapped to phases: 22
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-23 after initial definition*
+*Last updated: 2026-03-23 after roadmap creation*
