@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-03-22T23:05:59.903Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-03-22T23:41:55.432Z"
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 ## Current Position
 
 Phase: 01 (foundation) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Plan: 2 of 3
 
 *Updated after each plan completion*
 | Phase 01 P01 | 3min | 2 tasks | 15 files |
+| Phase 01 P02 | 15min | 3 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -59,6 +60,9 @@ Recent decisions affecting current work:
 - [Roadmap]: Dashboard (Phase 4) depends only on Phase 1, can be built in parallel with Phases 2-3 if desired.
 - [Phase 01]: Used JSON Schema draft-07 for NDJSON record validation -- widely supported, jq-compatible
 - [Phase 01]: Empty JSONL files committed as append targets to avoid file-not-found on first write
+- [Phase 01]: Registered MCP server at user scope (not project scope) to avoid secrets in repo
+- [Phase 01]: Used Internal OAuth consent type to eliminate 7-day token expiry for Workspace accounts
+- [Phase 01]: Verified hardened fork tool surface before registration -- confirmed no send/share/filter/delete capabilities
 
 ### Pending Todos
 
@@ -66,11 +70,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- Google OAuth must be set to production mode on day one -- testing tokens expire in 7 days silently.
-- Hardened MCP fork (c0webster) must be used, not the original -- security requirement, not preference.
+- ~~Google OAuth must be set to production mode on day one -- testing tokens expire in 7 days silently.~~ RESOLVED in 01-02: Internal mode configured.
+- ~~Hardened MCP fork (c0webster) must be used, not the original -- security requirement, not preference.~~ RESOLVED in 01-02: Hardened fork installed and verified.
 
 ## Session Continuity
 
-Last session: 2026-03-22T23:05:59.900Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-03-22T23:41:55.429Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None

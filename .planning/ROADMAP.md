@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md -- Directory structure, .gitignore, NDJSON schemas, and utility scripts
-- [ ] 01-02-PLAN.md -- Google OAuth setup and hardened MCP server installation
+- [x] 01-02-PLAN.md -- Google OAuth setup and hardened MCP server installation
 - [ ] 01-03-PLAN.md -- CLAUDE.md enhancement and custom slash commands
 
 ### Phase 2: Email Triage
@@ -78,7 +78,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Planning complete | - |
+| 1. Foundation | 2/3 | In Progress | - |
 | 2. Email Triage | 0/? | Not started | - |
 | 3. Task Execution | 0/? | Not started | - |
 | 4. Dashboard | 0/? | Not started | - |
