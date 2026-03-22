@@ -129,6 +129,40 @@ Conventions not yet established. Will populate as patterns emerge during develop
 Architecture not yet mapped. Follow existing patterns found in the codebase.
 <!-- GSD:architecture-end -->
 
+## MCP Server Usage
+
+CRITICAL: Use ONLY the `hardened-workspace` MCP server for Gmail and Drive access.
+DO NOT use `claude.ai Gmail` or `claude.ai Google Calendar` connectors -- they can
+send emails and route data through external servers.
+
+When accessing Gmail or Drive, use tools prefixed with `mcp__hardened-workspace__`.
+
+Security model: Claude can READ emails and CREATE drafts, but CANNOT send emails,
+share files, create filters, or delete anything. This is enforced by the hardened MCP
+fork and is the primary defense against prompt injection attacks.
+
+## Data Conventions
+
+- Activity feed: Append to `data/feed.jsonl` (NDJSON, one JSON object per line)
+  - Required fields: ts, type, summary, level, trigger
+  - Types: triage, task, draft, system, command
+  - All timestamps in ISO 8601 with timezone offset (e.g., 2026-03-23T10:30:00+10:00)
+- Triage results: Create new file in `data/triage/` named by ISO timestamp (e.g., `2026-03-23T0900.jsonl`)
+  - One record per email. Required fields: message_id, thread_id, from, subject, received, priority
+- Task records: Append to `data/tasks/active.jsonl`
+  - Required fields: id (task-YYYY-MM-DD-NNN), ts, status, description, trigger
+- Schemas: See `schemas/` directory for full JSON Schema definitions of all record types
+- Dashboard data: Run `scripts/build-dashboard-data.sh` to compile NDJSON into `docs/feed.json` and `docs/tasks.json`
+
+## Commands
+
+Custom operations available as slash commands:
+
+- `/status` -- Quick summary: recent activity count, triage runs, pending tasks
+- `/task <description>` -- Create a new task or list pending tasks (no args)
+- `/feed [count]` -- Show recent activity feed entries (default: 10)
+- `/triage-inbox` -- Scan Gmail inbox and categorize emails (Phase 2 -- currently stub)
+
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
 
