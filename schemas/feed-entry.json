@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "feed-entry",
+  "title": "Activity Feed Entry",
+  "description": "One line in data/feed.jsonl. Logs every action Claude performs.",
+  "type": "object",
+  "required": ["ts", "type", "summary", "level", "trigger"],
+  "properties": {
+    "ts": {
+      "type": "string",
+      "description": "ISO 8601 timestamp with timezone offset",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[+-]\\d{2}:\\d{2}$"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["triage", "task", "draft", "system", "command"],
+      "description": "Category of activity"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Human-readable one-liner describing what happened",
+      "maxLength": 200
+    },
+    "level": {
+      "type": "string",
+      "enum": ["critical", "info", "debug"],
+      "description": "Severity level for filtering"
+    },
+    "trigger": {
+      "type": "string",
+      "enum": ["manual", "scheduled", "hook"],
+      "description": "What initiated this action"
+    },
+    "details": {
+      "type": "object",
+      "description": "Action-specific metadata (emails_scanned, flagged count, triage_file path, etc.)",
+      "additionalProperties": true
+    },
+    "duration_ms": {
+      "type": "integer",
+      "description": "Execution time in milliseconds",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}
