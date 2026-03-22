@@ -1,0 +1,156 @@
+# Stack Research
+
+**Domain:** AI-powered personal operations hub (Claude Code + MCP + GitHub Pages)
+**Researched:** 2026-03-23
+**Confidence:** HIGH
+
+## Recommended Stack
+
+### Core Technologies
+
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| Claude Code | >=2.1.80 | AI runtime, task orchestration, scheduling | The entire system runs inside Claude Code sessions. v2.1.80+ required for Channels (Telegram/Discord bridge), /loop scheduling, and cron tools. This is not a library choice -- it IS the platform. |
+| hardened-google-workspace-mcp | latest (fork of taylorwilsdon/google_workspace_mcp) | Gmail read, Drive access, Calendar view | Security-hardened fork that strips all data-exfiltration vectors: no email sending, no file sharing, no filter creation. Claude can read Gmail and draft replies, but cannot send -- preventing prompt injection attacks from forwarding sensitive data. |
+| github/github-mcp-server | latest (remote HTTP) | GitHub operations: commits, Pages deployment, file ops | GitHub's official MCP server. Use the remote HTTP endpoint (`https://api.githubcopilot.com/mcp/`) -- no Docker required. Handles pushing generated dashboard files, managing issues, and repo operations. |
+| GitHub Actions (claude-code-action@v1) | v1 | Durable scheduled automation | Session-scoped /loop tasks die when you exit and expire after 3 days. For reliable daily email triage that runs unattended, GitHub Actions with `schedule` cron triggers is the only production-grade option. Runs Claude Code on GitHub-hosted runners with full MCP access. |
+| NDJSON (.jsonl) | N/A (format spec) | Activity feed data storage | Append-only, one-JSON-object-per-line. Perfect for activity logs: `echo '{"ts":"...","action":"..."}' >> feed.jsonl`. Git-friendly (append-only = clean diffs), corruption-isolated (bad line does not break the file), streamable. |
+| Plain HTML/CSS/JS | N/A | GitHub Pages dashboard | Zero build step. Claude generates the HTML directly. No framework overhead for what is fundamentally a read-only status display. Fetches `feed.json` (compiled from NDJSON) at page load. |
+
+### Supporting Libraries / Tools
+
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| rclone | >=1.68 | Sync local data directory to Google Drive | Hybrid storage requirement: local git repo as source of truth, Drive for mobile/cross-device access. Run as post-commit hook or cron job. |
+| peaceiris/actions-gh-pages | @v4 | Deploy static dashboard to GitHub Pages | Used in the GitHub Actions workflow that regenerates the dashboard after email triage runs. Pushes to `gh-pages` branch. |
+| jq | >=1.7 | JSON processing in shell scripts | Transform NDJSON feed into dashboard-consumable JSON. Used in build scripts: `jq -s '.' feed.jsonl > docs/feed.json`. |
+| anthropics/claude-code-action | @v1 | Run Claude Code in GitHub Actions | The official action for running Claude Code on GitHub runners. Supports `prompt`, `claude_args` (model, max-turns), and MCP config passthrough via `--mcp-config`. |
+
+### Development Tools
+
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| Claude Code Skills (.claude/commands/) | Custom slash commands for ops workflows | Create `/triage-inbox`, `/draft-reply`, `/check-starred` commands as Markdown files. Skills invoke automatically when context matches; commands invoke explicitly. |
+| Claude Code /loop | Session-scoped recurring tasks | Good for interactive monitoring ("check inbox every 30m while I work"). Not for unattended automation -- use GitHub Actions for that. |
+| Git hooks (post-commit) | Trigger Drive sync after data changes | After Claude writes to the activity feed and commits, a post-commit hook runs `rclone copy` to sync to Drive. |
+
+## Installation
+
+```bash
+# Claude Code (already installed -- verify version)
+claude --version  # Must be >= 2.1.80
+
+# Add hardened Google Workspace MCP server
+git clone https://github.com/c0webster/hardened-google-workspace-mcp.git ~/.mcp-servers/google-workspace
+cd ~/.mcp-servers/google-workspace && uv sync
+
+# Register with Claude Code (user scope so it works across projects)
+claude mcp add -s user --transport stdio google-workspace \
+  -- uv run --directory ~/.mcp-servers/google-workspace src/main.py \
+  --env GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
+  --env GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}"
+
+# Add GitHub MCP server (remote HTTP -- no Docker needed)
+claude mcp add -s user --transport http github \
+  https://api.githubcopilot.com/mcp/ \
+  --header "Authorization: Bearer ${GITHUB_PAT}"
+
+# Install rclone for Drive sync (macOS)
+brew install rclone
+rclone config  # Follow interactive setup for Google Drive remote
+
+# Install jq for JSON processing
+brew install jq
+```
+
+## Alternatives Considered
+
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| hardened-google-workspace-mcp | taylorwilsdon/google_workspace_mcp (original) | Only if you need Claude to SEND emails directly. The hardened fork deliberately removes send capability to prevent prompt injection exfiltration. For this project, "draft but don't send" is the right security posture. |
+| Plain HTML/CSS/JS dashboard | Astro or 11ty static site generator | Only if the dashboard grows beyond 3-4 views and needs component reuse, templating, or partial hydration. For a single-page glanceable status view, a framework adds complexity without value. |
+| NDJSON flat files | SQLite via better-sqlite3 | Only if you need to query across thousands of records with complex filters. For an activity feed that is primarily append + recent-N display, NDJSON is simpler and fully git-trackable. |
+| GitHub Actions scheduled workflows | Claude Desktop scheduled tasks | Desktop tasks are persistent and survive restarts, but there is a known open bug (issue #36327) where MCP servers are not accessible during scheduled task execution. GitHub Actions is more reliable for now. |
+| GitHub Actions scheduled workflows | Claude Code /loop | /loop is session-scoped (dies when you exit), expires after 3 days, and has no catch-up for missed fires. Fine for ad-hoc monitoring, not for daily email triage that must run unattended. |
+| rclone sync to Google Drive | Google Drive MCP write tools | MCP tools work file-by-file through Claude's context. rclone does bulk directory sync efficiently without burning tokens. Use rclone for the automated sync; use MCP for ad-hoc document access. |
+| GitHub remote HTTP MCP | @modelcontextprotocol/server-github (npm) | Never. The npm package is deprecated as of April 2025. Use the official remote HTTP endpoint. |
+
+## What NOT to Use
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| taylorwilsdon/google_workspace_mcp (unmodified) | Has email sending, file sharing, filter creation tools that are vulnerable to prompt injection. An attacker could embed instructions in email body that cause Claude to forward sensitive data. | hardened-google-workspace-mcp (c0webster fork) |
+| @modelcontextprotocol/server-github (npm) | Deprecated since April 2025. No longer maintained. | github/github-mcp-server remote HTTP endpoint |
+| Claude Desktop scheduled tasks (for production) | Open bug #36327: scheduled tasks cannot access MCP servers. MCP tools fail silently during scheduled execution. Multiple duplicate issues confirm this is unresolved as of March 2026. | GitHub Actions with claude-code-action@v1 |
+| Any JavaScript SPA framework (React, Vue, Svelte) for dashboard | Massive overkill for a read-only status page. Adds build toolchain, node_modules, bundler config. Claude can generate plain HTML faster and more reliably than framework code. | Plain HTML + CSS + vanilla JS that fetches feed.json |
+| SQLite or any database | Adds a binary dependency that is not git-diffable, requires backup strategy, and adds complexity for what is fundamentally an append-only log. | NDJSON files committed to git |
+| External SaaS for data storage (Notion, Airtable, etc.) | Violates the "data ownership" constraint. Glen must own and control all data in a local git repo. | Local NDJSON files + git + rclone to Drive |
+| Composio, Rube, or MCP aggregator services | Adds a third-party intermediary for auth and data flow. Privacy constraint: business data must not leak beyond Claude's own infrastructure. | Direct MCP server connections (hardened workspace + GitHub) |
+
+## Stack Patterns by Variant
+
+**If running interactively (Glen at desktop):**
+- Use Claude Code CLI directly with MCP servers
+- Use /loop for monitoring tasks ("check inbox every 30m")
+- Trigger operations manually: "triage my inbox", "draft a reply to Sarah's email"
+- Activity feed updates commit to local git immediately
+
+**If running unattended (scheduled automation):**
+- Use GitHub Actions with `schedule` cron trigger
+- claude-code-action@v1 with `--mcp-config` pointing to MCP configuration
+- Prompt instructs Claude to: read inbox, categorize, log to feed, commit, push
+- peaceiris/actions-gh-pages@v4 deploys updated dashboard
+- Note: MCP servers must be configured in the GitHub Actions environment (not inherited from local)
+
+**If accessing from mobile:**
+- GitHub Pages dashboard (responsive HTML)
+- Dashboard reads `feed.json` (static file, no API needed)
+- Claude Code Channels via Telegram for ad-hoc commands (requires v2.1.80+, research preview)
+
+## Version Compatibility
+
+| Component | Compatible With | Notes |
+|-----------|-----------------|-------|
+| Claude Code >=2.1.80 | claude-code-action@v1 | Action runs Claude Code on GitHub runners. Ensure runner installs correct version. |
+| hardened-google-workspace-mcp | Python 3.10+, uv package manager | Uses `uv sync` for dependency management. Google Cloud OAuth 2.0 credentials required. |
+| github/github-mcp-server (remote HTTP) | Claude Code >=2.1.72 | HTTP transport supported since early 2026. Requires GitHub PAT with `repo` scope. |
+| peaceiris/actions-gh-pages@v4 | actions/checkout@v4 | Must checkout repo before deploying. Push to `gh-pages` branch. |
+| rclone >=1.68 | Google Drive API v3 | Requires OAuth app or service account. Configure via `rclone config`. |
+| jq >=1.7 | NDJSON files | Use `jq -s '.'` to convert NDJSON to JSON array for dashboard consumption. |
+
+## Known Issues and Caveats
+
+### MCP Servers in Scheduled Tasks (CRITICAL)
+Claude Desktop scheduled tasks cannot access MCP servers (open bug #36327, multiple duplicates). This means you CANNOT rely on Desktop scheduled tasks for automated email triage. Use GitHub Actions instead, where MCP servers are configured explicitly in the workflow environment.
+
+### Hardened Workspace MCP Limitations
+- Claude can READ emails but not SEND them (by design)
+- Claude can CREATE drafts that Glen reviews and sends manually from Gmail
+- Data leakage is still possible through shared folders or attacker-owned documents
+- User must review tool permissions before approval each time
+
+### Three-Day /loop Expiry
+Recurring tasks created with /loop automatically expire after 3 days. If you want a persistent monitoring loop, you must recreate it. This is a safety feature, not a bug.
+
+### GitHub Actions Cost
+Each scheduled Claude Code run on GitHub Actions consumes:
+- GitHub Actions minutes (free tier: 2,000 min/month for private repos)
+- Anthropic API tokens (proportional to inbox size and task complexity)
+- Running daily at 9am with a 10-minute timeout: ~300 min/month (well within free tier)
+
+## Sources
+
+- [Claude Code Scheduled Tasks (official docs)](https://code.claude.com/docs/en/scheduled-tasks) -- /loop, cron tools, session scope, 3-day expiry -- HIGH confidence
+- [Claude Code MCP Configuration (official docs)](https://code.claude.com/docs/en/mcp) -- .mcp.json format, scope levels, transport types -- HIGH confidence
+- [Claude Code GitHub Actions (official docs)](https://code.claude.com/docs/en/github-actions) -- claude-code-action@v1 setup, scheduled workflows, MCP config -- HIGH confidence
+- [Claude Code Channels (official docs)](https://code.claude.com/docs/en/channels) -- Telegram/Discord push messages, research preview, v2.1.80 requirement -- HIGH confidence
+- [hardened-google-workspace-mcp (GitHub)](https://github.com/c0webster/hardened-google-workspace-mcp) -- security removals, installation, OAuth setup -- HIGH confidence
+- [github/github-mcp-server (GitHub)](https://github.com/github/github-mcp-server) -- remote HTTP endpoint, authentication, toolsets -- HIGH confidence
+- [MCP Scheduled Task Bug #36327 (GitHub)](https://github.com/anthropics/claude-code/issues/36327) -- MCP tools unavailable in Desktop scheduled tasks -- HIGH confidence
+- [peaceiris/actions-gh-pages (GitHub)](https://github.com/peaceiris/actions-gh-pages) -- v4 for GitHub Pages deployment -- HIGH confidence
+- [NDJSON specification](https://ndjson.com/definition/) -- format definition, append-only advantages -- HIGH confidence
+- [rclone Google Drive docs](https://rclone.org/drive/) -- configuration, sync commands -- HIGH confidence
+
+---
+*Stack research for: AI-powered personal operations hub*
+*Researched: 2026-03-23*
