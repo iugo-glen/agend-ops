@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01-PLAN.md -- Directory structure, .gitignore, NDJSON schemas, and utility scripts
 - [x] 01-02-PLAN.md -- Google OAuth setup and hardened MCP server installation
-- [ ] 01-03-PLAN.md -- CLAUDE.md enhancement and custom slash commands
+- [x] 01-03-PLAN.md -- CLAUDE.md enhancement and custom slash commands
 
 ### Phase 2: Email Triage
 **Goal**: Glen can run a single command and get his inbox categorized into priority buckets with starred emails surfaced first, draft replies generated, and actionable items flagged -- all logged to the activity feed

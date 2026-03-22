@@ -12,7 +12,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **FOUND-01**: Google OAuth 2.0 configured in PRODUCTION mode for Gmail and Drive access
 - [x] **FOUND-02**: Hardened Google Workspace MCP server (c0webster fork) installed and configured with security-stripped capabilities
 - [x] **FOUND-03**: NDJSON data schema defined for activity feed, email summaries, and task records
-- [ ] **FOUND-04**: CLAUDE.md project configuration with custom commands for common operations
+- [x] **FOUND-04**: CLAUDE.md project configuration with custom commands for common operations
 - [x] **FOUND-05**: Git repo directory structure established (data/, dashboard/, scripts/)
 
 ### Email Triage
@@ -92,7 +92,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-01 | Phase 1 | Complete |
 | FOUND-02 | Phase 1 | Complete |
 | FOUND-03 | Phase 1 | Complete |
-| FOUND-04 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Complete |
 | FOUND-05 | Phase 1 | Complete |
 | EMAIL-01 | Phase 2 | Pending |
 | EMAIL-02 | Phase 2 | Pending |
