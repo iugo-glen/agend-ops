@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md -- Directory structure, .gitignore, NDJSON schemas, and utility scripts
+- [x] 01-01-PLAN.md -- Directory structure, .gitignore, NDJSON schemas, and utility scripts
 - [ ] 01-02-PLAN.md -- Google OAuth setup and hardened MCP server installation
 - [ ] 01-03-PLAN.md -- CLAUDE.md enhancement and custom slash commands
 
