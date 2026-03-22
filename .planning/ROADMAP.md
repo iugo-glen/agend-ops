@@ -29,7 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The MCP server has no send, share, or filter-creation capabilities (hardened fork verified)
   4. NDJSON schema files exist with documented field definitions for feed, email summaries, and task records
   5. Custom Claude Code commands (e.g., /triage-inbox) are defined in CLAUDE.md and executable
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md -- Directory structure, .gitignore, NDJSON schemas, and utility scripts
+- [ ] 01-02-PLAN.md -- Google OAuth setup and hardened MCP server installation
+- [ ] 01-03-PLAN.md -- CLAUDE.md enhancement and custom slash commands
 
 ### Phase 2: Email Triage
 **Goal**: Glen can run a single command and get his inbox categorized into priority buckets with starred emails surfaced first, draft replies generated, and actionable items flagged -- all logged to the activity feed
@@ -73,7 +78,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/? | Not started | - |
+| 1. Foundation | 0/3 | Planning complete | - |
 | 2. Email Triage | 0/? | Not started | - |
 | 3. Task Execution | 0/? | Not started | - |
 | 4. Dashboard | 0/? | Not started | - |
