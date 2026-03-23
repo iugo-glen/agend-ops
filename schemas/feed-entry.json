@@ -13,7 +13,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["triage", "task", "draft", "system", "command"],
+      "enum": ["triage", "task", "draft", "system", "command", "briefing"],
       "description": "Category of activity"
     },
     "summary": {

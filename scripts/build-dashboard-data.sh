@@ -35,4 +35,21 @@ else
   echo "Built docs/triage.json (empty -- no triage data yet)"
 fi
 
+# Compile latest briefing -> docs/briefing.json
+LATEST_BRIEFING=$(ls -t "$REPO_ROOT/data/briefings/"*.md 2>/dev/null | head -1 || true)
+if [ -n "$LATEST_BRIEFING" ] && [ -s "$LATEST_BRIEFING" ]; then
+  # Extract briefing metadata from the corresponding feed entry
+  BRIEFING_DATE=$(basename "$LATEST_BRIEFING" .md)
+  # Find the briefing feed entry for this date
+  jq -s "[.[] | select(.type==\"briefing\" and (.ts | startswith(\"${BRIEFING_DATE}\")))] | if length > 0 then .[0] else null end" "$REPO_ROOT/data/feed.jsonl" > "$REPO_ROOT/docs/briefing.json"
+  # If no feed entry found, create a minimal JSON with the file path
+  if [ "$(cat "$REPO_ROOT/docs/briefing.json")" = "null" ]; then
+    echo "{\"briefing_file\": \"${LATEST_BRIEFING}\", \"date\": \"${BRIEFING_DATE}\"}" > "$REPO_ROOT/docs/briefing.json"
+  fi
+  echo "Built docs/briefing.json (from ${BRIEFING_DATE})"
+else
+  echo "null" > "$REPO_ROOT/docs/briefing.json"
+  echo "Built docs/briefing.json (empty -- no briefing data yet)"
+fi
+
 echo "Dashboard data build complete."

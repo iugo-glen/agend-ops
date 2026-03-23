@@ -92,7 +92,7 @@ Scan Glen's Gmail inbox, categorize emails by priority, generate draft replies f
    ```
    Then stage and commit the updated dashboard data files:
    ```bash
-   git add docs/feed.json docs/tasks.json docs/triage.json
+   git add docs/feed.json docs/tasks.json docs/triage.json docs/briefing.json
    git commit -m "data: rebuild dashboard data after triage"
    ```
    If the commit fails (nothing changed), that is fine -- continue without error.
