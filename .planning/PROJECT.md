@@ -17,6 +17,12 @@ Offload cognitive load — Claude handles email triage and task execution so Gle
 - NDJSON data schemas defined (feed, triage, task records) — Phase 1
 - CLAUDE.md with custom commands (/status, /task, /feed, /triage-inbox) — Phase 1
 - Git repo directory structure established (data/, docs/, scripts/, schemas/) — Phase 1
+- Gmail inbox scanning and categorization into 4 priority buckets via MCP — Phase 2
+- Starred emails surfaced as highest-priority "needs my action" queue — Phase 2
+- Draft reply generation for urgent/client emails (Gmail drafts only, mirrors Glen's tone) — Phase 2
+- Actionable item detection (contracts, invoices, meetings, deadlines) with client tagging — Phase 2
+- Email preprocessing pipeline (HTML/signature stripping, token cost management) — Phase 2
+- Human-in-the-loop enforced (hardened MCP cannot send) — Phase 2
 
 ### Active
 
@@ -86,4 +92,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after Phase 1 completion*
+*Last updated: 2026-03-23 after Phase 2 completion*
