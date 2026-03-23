@@ -140,7 +140,7 @@ Plans:
 
 Plans:
 - [x] 07-01-PLAN.md -- Invoice schema, /invoice command, build script extension, and Xero MCP config
-- [ ] 07-02-PLAN.md -- Triage pipeline invoice auto-queue and daily briefing invoice section
+- [x] 07-02-PLAN.md -- Triage pipeline invoice auto-queue and daily briefing invoice section
 - [ ] 07-03-PLAN.md -- Dashboard "Invoices" tab with overdue highlighting and visual verification
 
 ### Phase 8: Telegram Mobile Commands
