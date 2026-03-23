@@ -23,6 +23,12 @@ Offload cognitive load — Claude handles email triage and task execution so Gle
 - Actionable item detection (contracts, invoices, meetings, deadlines) with client tagging — Phase 2
 - Email preprocessing pipeline (HTML/signature stripping, token cost management) — Phase 2
 - Human-in-the-loop enforced (hardened MCP cannot send) — Phase 2
+- Manual task kickoff via /task command with natural language parsing — Phase 3
+- Proactive task suggestions auto-queued from email triage action items — Phase 3
+- Document retrieval from Gmail/Drive with two-step fallback — Phase 3
+- Document analysis with executive summary output (contracts, meetings, docs, comms) — Phase 3
+- Task output saved to repo (data/tasks/{id}/) and displayed inline — Phase 3
+- Task lifecycle: pending → in-progress → completed with activity feed logging — Phase 3
 
 ### Active
 
@@ -92,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after Phase 2 completion*
+*Last updated: 2026-03-23 after Phase 3 completion*
