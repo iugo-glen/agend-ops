@@ -313,6 +313,24 @@
       overflow: hidden;
     }
 
+    .email-link {
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .email-link:hover { text-decoration: underline; }
+    .draft-link {
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-size: var(--text-sm);
+    }
+    .draft-link:hover { text-decoration: underline; }
+
     .email-snippet {
       font-size: var(--text-sm);
       color: var(--text-secondary);
@@ -936,11 +954,21 @@
       }
       card.appendChild(line1);
 
-      /* Line 2: subject */
-      var subject = document.createElement('div');
-      subject.className = 'email-subject';
-      subject.textContent = record.subject || '';
-      card.appendChild(subject);
+      /* Line 2: subject (linked to Gmail if thread_id exists) */
+      if (record.thread_id) {
+        var subjectLink = document.createElement('a');
+        subjectLink.className = 'email-subject email-link';
+        subjectLink.textContent = record.subject || '';
+        subjectLink.href = 'https://mail.google.com/mail/u/0/#inbox/' + record.thread_id;
+        subjectLink.target = '_blank';
+        subjectLink.rel = 'noopener';
+        card.appendChild(subjectLink);
+      } else {
+        var subject = document.createElement('div');
+        subject.className = 'email-subject';
+        subject.textContent = record.subject || '';
+        card.appendChild(subject);
+      }
 
       /* Line 3: snippet */
       var snippet = document.createElement('div');
@@ -956,6 +984,15 @@
       ts.textContent = relativeTime(record.received);
       meta.appendChild(ts);
 
+      if (record.draft_id) {
+        var draftLink = document.createElement('a');
+        draftLink.className = 'action-badge draft-link';
+        draftLink.textContent = 'View draft';
+        draftLink.href = 'https://mail.google.com/mail/u/0/#drafts/' + record.draft_id;
+        draftLink.target = '_blank';
+        draftLink.rel = 'noopener';
+        meta.appendChild(draftLink);
+      }
       if (record.action_type && record.action_type !== 'none') {
         var actionBadge = document.createElement('span');
         actionBadge.className = 'action-badge';
@@ -1224,6 +1261,17 @@
         var invNum = document.createElement('span');
         invNum.textContent = record.invoice_number;
         meta.appendChild(invNum);
+      }
+
+      /* Source email link */
+      if (record.source_email_id) {
+        var emailLink = document.createElement('a');
+        emailLink.className = 'draft-link';
+        emailLink.textContent = 'View email';
+        emailLink.href = 'https://mail.google.com/mail/u/0/#inbox/' + record.source_email_id;
+        emailLink.target = '_blank';
+        emailLink.rel = 'noopener';
+        meta.appendChild(emailLink);
       }
 
       card.appendChild(meta);
