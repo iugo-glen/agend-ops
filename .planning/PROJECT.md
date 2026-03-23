@@ -36,24 +36,29 @@ Offload cognitive load — Claude handles email triage and task execution so Gle
 
 ### Active
 
-- [ ] Claude scans Gmail inbox on a schedule, categorizes emails, and surfaces important items
-- [ ] Claude drafts replies for emails that need responses
-- [ ] Claude detects actionable items in emails (contracts, invoices, meeting requests) and suggests tasks
-- [ ] Claude executes suggested tasks when approved (pull document, analyze, draft response)
-- [ ] Manual task kickoff via Claude Code (e.g., "review the contract Sarah sent", "prep for Thursday meeting")
-- [ ] Activity feed logging everything Claude did, why, and the outcome
-- [ ] GitHub Pages dashboard — mobile-friendly, glanceable status view
-- [ ] Starred emails treated as "I need to do something first" queue
-- [ ] Hybrid data storage — local git repo as source of truth, synced to Google Drive for access
+- [ ] Scheduled email triage via Claude Desktop recurring tasks (validate MCP access)
+- [ ] Daily task list / to-do management (add, complete, prioritize tasks beyond email)
+- [ ] Invoice tracking (which clients, amounts, due dates, billing status)
+- [ ] Mobile commands via Telegram channel (send tasks, approve drafts from phone)
 
 ### Out of Scope
 
-- Daily task list / to-do management — deferred to v2, want email + tasks working first
-- POC tracker — deferred to v2, lower urgency than email triage
-- Invoice tracking — deferred to v2, important but not the biggest cognitive drain right now
-- Daily digest email summaries — deferred to v2, activity feed covers this for now
-- Push notifications — using in-app feed instead for v1
-- Building a native mobile app — GitHub Pages dashboard is sufficient for v1
+- POC tracker — deferred to v3, lower urgency
+- Daily digest email summaries — activity feed + dashboard covers this
+- Push notifications — using in-app feed and Telegram instead
+- Building a native mobile app — GitHub Pages dashboard + Telegram sufficient
+- Google Drive sync — deferred, GitHub Pages provides mobile access
+- Full calendar management — detect meeting requests in emails instead
+
+## Current Milestone: v2.0 Autonomous Operations
+
+**Goal:** Transform Agend Ops from a manual tool into an autonomous assistant — scheduled triage, daily task management, invoice tracking, and mobile commands.
+
+**Target features:**
+- Scheduled email triage via Claude Desktop recurring tasks
+- Daily task list / to-do management
+- Invoice tracking
+- Mobile commands via Telegram
 
 ## Context
 
@@ -102,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after Phase 4 completion — v1 milestone complete*
+*Last updated: 2026-03-23 after v2.0 milestone start*

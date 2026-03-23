@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: Milestone complete
-stopped_at: Completed 04-02-PLAN.md
+milestone: v2.0
+milestone_name: autonomous-operations
+status: Defining requirements
+stopped_at: Milestone v2.0 started
 last_updated: "2026-03-23T06:14:30.942Z"
 progress:
   total_phases: 4
