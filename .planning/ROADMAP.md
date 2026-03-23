@@ -106,7 +106,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md -- Data contracts: feed schema extension, build script update, /daily-briefing command
+- [x] 05-01-PLAN.md -- Data contracts: feed schema extension, build script update, /daily-briefing command
 - [ ] 05-02-PLAN.md -- GitHub Actions scheduled triage workflow with MCP config and Desktop task test
 - [ ] 05-03-PLAN.md -- Dashboard briefing summary banner and visual verification
 
