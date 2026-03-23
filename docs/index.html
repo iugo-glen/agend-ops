@@ -573,6 +573,114 @@
       border-radius: 3px;
     }
 
+    /* === Invoice Card === */
+    .invoice-card {
+      padding: var(--space-sm) var(--space-md);
+      border-radius: 6px;
+      background: var(--surface);
+      margin-bottom: var(--space-sm);
+      border-left: 3px solid var(--border);
+    }
+
+    .invoice-card--overdue {
+      border-left-color: var(--destructive);
+      background: color-mix(in srgb, var(--destructive) 5%, var(--surface));
+    }
+
+    .invoice-card--reminder {
+      border-left-color: var(--priority-informational);
+      border-left-style: dashed;
+    }
+
+    .invoice-card--paid {
+      opacity: 0.6;
+    }
+
+    .invoice-project {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--accent);
+      margin-right: var(--space-xs);
+    }
+
+    .invoice-client {
+      font-size: var(--text-body);
+      color: var(--text-primary);
+    }
+
+    .invoice-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-top: var(--space-xs);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      flex-wrap: wrap;
+    }
+
+    .invoice-amount {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .invoice-amount--overdue {
+      color: var(--destructive);
+    }
+
+    .invoice-status {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .invoice-status--overdue {
+      background: var(--destructive);
+      color: white;
+    }
+
+    .invoice-status--sent {
+      background: var(--priority-needs-response);
+      color: white;
+    }
+
+    .invoice-status--draft {
+      background: var(--text-secondary);
+      color: white;
+    }
+
+    .invoice-status--reminder {
+      background: var(--priority-informational);
+      color: white;
+    }
+
+    .invoice-status--paid {
+      background: var(--status-completed);
+      color: white;
+    }
+
+    .invoice-overdue-days {
+      font-size: var(--text-sm);
+      color: var(--destructive);
+      font-weight: 600;
+    }
+
+    .invoice-group-label {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: var(--space-xs) 0;
+      margin-top: var(--space-sm);
+    }
+
+    .invoice-group-label:first-child {
+      margin-top: 0;
+    }
+
     /* === Section Divider in Today Tab === */
     .section-label {
       font-size: var(--text-sm);
@@ -605,7 +713,7 @@
 
       .main {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(6, 1fr);
         gap: var(--space-lg);
         max-width: 1280px;
         margin: 0 auto;
@@ -631,7 +739,8 @@
       .email-card:hover,
       .task-card:hover,
       .todo-card:hover,
-      .activity-card:hover {
+      .activity-card:hover,
+      .invoice-card:hover {
         background: color-mix(in srgb, var(--border) 50%, var(--surface));
       }
     }
@@ -650,6 +759,7 @@
     <span class="summary-pill"><strong id="stat-pending">--</strong> pending</span>
     <span class="summary-pill"><strong id="stat-todos">--</strong> to-dos</span>
     <span class="summary-pill"><strong id="stat-drafts">--</strong> drafts</span>
+    <span class="summary-pill"><strong id="stat-overdue">--</strong> overdue</span>
   </div>
 
   <section class="briefing-banner" id="briefing-banner" hidden>
@@ -671,6 +781,7 @@
     <button class="tab-btn" role="tab" aria-selected="false" aria-controls="col-urgent" id="tab-urgent" tabindex="-1">Urgent</button>
     <button class="tab-btn" role="tab" aria-selected="false" aria-controls="col-tasks" id="tab-tasks" tabindex="-1">Tasks</button>
     <button class="tab-btn" role="tab" aria-selected="false" aria-controls="col-activity" id="tab-activity" tabindex="-1">Activity</button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-controls="col-invoices" id="tab-invoices" tabindex="-1">Invoices</button>
   </nav>
 
   <main class="main">
@@ -712,6 +823,14 @@
         <span class="column-count" id="count-activity"></span>
       </div>
       <div class="column-cards" id="cards-activity"></div>
+    </section>
+
+    <section class="column" id="col-invoices" role="tabpanel" aria-labelledby="tab-invoices" hidden>
+      <div class="column-header">
+        <span class="column-title">Invoices</span>
+        <span class="column-count" id="count-invoices"></span>
+      </div>
+      <div class="column-cards" id="cards-invoices"></div>
     </section>
   </main>
 
@@ -1003,13 +1122,123 @@
       return card;
     }
 
+    /* === Invoice Helpers === */
+    function formatAmount(amount, currency) {
+      if (amount === null || amount === undefined) return '';
+      return '$' + amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + (currency || 'AUD');
+    }
+
+    function daysOverdue(dueDateStr) {
+      var due = new Date(dueDateStr + 'T00:00:00');
+      var now = new Date();
+      now.setHours(0, 0, 0, 0);
+      var diff = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+      return diff > 0 ? diff : 0;
+    }
+
+    function createInvoiceCard(record) {
+      var card = document.createElement('article');
+      card.className = 'invoice-card';
+
+      /* Compute overdue: status=="sent" AND due_date < today */
+      var today = new Date();
+      var todayStr = today.getFullYear() + '-' +
+        String(today.getMonth() + 1).padStart(2, '0') + '-' +
+        String(today.getDate()).padStart(2, '0');
+      var isOverdue = (record.status === 'sent' && record.due_date && record.due_date < todayStr);
+
+      if (isOverdue) {
+        card.className += ' invoice-card--overdue';
+      } else if (record.status === 'reminder') {
+        card.className += ' invoice-card--reminder';
+      } else if (record.status === 'paid') {
+        card.className += ' invoice-card--paid';
+      }
+
+      /* Line 1: project_code (prominent) + client_name */
+      var line1 = document.createElement('div');
+
+      if (record.project_code) {
+        var projEl = document.createElement('span');
+        projEl.className = 'invoice-project';
+        projEl.textContent = record.project_code;
+        line1.appendChild(projEl);
+      }
+
+      var clientEl = document.createElement('span');
+      clientEl.className = 'invoice-client';
+      clientEl.textContent = record.client_name || '';
+      line1.appendChild(clientEl);
+
+      card.appendChild(line1);
+
+      /* Line 2 (meta): amount, status badge, due info, invoice number */
+      var meta = document.createElement('div');
+      meta.className = 'invoice-meta';
+
+      /* Amount (reminders may not have one) */
+      if (record.status === 'reminder' && record.description) {
+        var descEl = document.createElement('span');
+        descEl.textContent = record.description;
+        meta.appendChild(descEl);
+      } else {
+        var amountStr = formatAmount(record.amount, record.currency);
+        if (amountStr) {
+          var amountEl = document.createElement('span');
+          amountEl.className = 'invoice-amount';
+          if (isOverdue) {
+            amountEl.className += ' invoice-amount--overdue';
+          }
+          amountEl.textContent = amountStr;
+          meta.appendChild(amountEl);
+        }
+      }
+
+      /* Status badge */
+      var statusBadge = document.createElement('span');
+      statusBadge.className = 'invoice-status';
+      if (isOverdue) {
+        statusBadge.className += ' invoice-status--overdue';
+        statusBadge.textContent = 'OVERDUE';
+      } else {
+        statusBadge.className += ' invoice-status--' + record.status;
+        statusBadge.textContent = record.status.toUpperCase();
+      }
+      meta.appendChild(statusBadge);
+
+      /* Due date or days overdue */
+      if (isOverdue) {
+        var daysEl = document.createElement('span');
+        daysEl.className = 'invoice-overdue-days';
+        var days = daysOverdue(record.due_date);
+        daysEl.textContent = days + ' day' + (days !== 1 ? 's' : '') + ' overdue';
+        meta.appendChild(daysEl);
+      } else if (record.due_date) {
+        var dueEl = document.createElement('span');
+        dueEl.textContent = 'Due ' + record.due_date;
+        meta.appendChild(dueEl);
+      }
+
+      /* Invoice number */
+      if (record.invoice_number) {
+        var invNum = document.createElement('span');
+        invNum.textContent = record.invoice_number;
+        meta.appendChild(invNum);
+      }
+
+      card.appendChild(meta);
+
+      return card;
+    }
+
     /* === Empty / Error States === */
     var emptyMessages = {
       'today': 'Nothing on your plate today. Nice!',
       'starred': 'No starred emails. Inbox zero!',
       'urgent': 'No urgent emails right now.',
       'tasks': 'No pending tasks.',
-      'activity': 'No activity recorded yet. Run /triage-inbox to get started.'
+      'activity': 'No activity recorded yet. Run /triage-inbox to get started.',
+      'invoices': 'No outstanding invoices. Looking good!'
     };
 
     var emptyIcons = {
@@ -1017,7 +1246,8 @@
       'starred': '\u2605',
       'urgent': '\u26A0',
       'tasks': '\u2713',
-      'activity': '\uD83D\uDCE5'
+      'activity': '\uD83D\uDCE5',
+      'invoices': '\uD83D\uDCB0'
     };
 
     function renderEmptyState(columnKey) {
@@ -1073,7 +1303,8 @@
       'tab-starred': 'col-starred',
       'tab-urgent': 'col-urgent',
       'tab-tasks': 'col-tasks',
-      'tab-activity': 'col-activity'
+      'tab-activity': 'col-activity',
+      'tab-invoices': 'col-invoices'
     };
 
     function activateTab(tab) {
@@ -1129,7 +1360,7 @@
 
     /* === Data Fetch + Render === */
     (async function() {
-      var feedResult, tasksResult, triageResult, briefingResult, todosResult;
+      var feedResult, tasksResult, triageResult, briefingResult, todosResult, invoicesResult;
 
       try {
         var results = await Promise.allSettled([
@@ -1137,7 +1368,8 @@
           fetch('./tasks.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
           fetch('./triage.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
           fetch('./briefing.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
-          fetch('./todos.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+          fetch('./todos.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
+          fetch('./invoices.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
         ]);
 
         feedResult = results[0].status === 'fulfilled' ? results[0].value : null;
@@ -1145,12 +1377,14 @@
         triageResult = results[2].status === 'fulfilled' ? results[2].value : null;
         briefingResult = results[3].status === 'fulfilled' ? results[3].value : null;
         todosResult = results[4].status === 'fulfilled' ? results[4].value : null;
+        invoicesResult = results[5].status === 'fulfilled' ? results[5].value : null;
       } catch (err) {
         feedResult = null;
         tasksResult = null;
         triageResult = null;
         briefingResult = null;
         todosResult = null;
+        invoicesResult = null;
       }
 
       /* --- Summary Bar --- */
@@ -1306,6 +1540,46 @@
         ? feedResult.slice().sort(function(a, b) { return b.ts > a.ts ? 1 : b.ts < a.ts ? -1 : 0; })
         : null;
       populateColumn('cards-activity', 'count-activity', activityItems, createActivityCard, 'activity');
+
+      /* --- Invoices Column --- */
+      var invoiceItems = null;
+      if (invoicesResult) {
+        var todayStr = new Date().getFullYear() + '-' +
+          String(new Date().getMonth() + 1).padStart(2, '0') + '-' +
+          String(new Date().getDate()).padStart(2, '0');
+
+        invoiceItems = invoicesResult
+          .filter(function(r) { return r.status !== 'written-off'; })
+          .map(function(r) {
+            r._isOverdue = (r.status === 'sent' && r.due_date && r.due_date < todayStr);
+            r._daysOverdue = r._isOverdue ? daysOverdue(r.due_date) : 0;
+            return r;
+          })
+          .sort(function(a, b) {
+            var statusOrder = {'overdue': 0, 'sent': 1, 'draft': 2, 'reminder': 3, 'paid': 4, 'disputed': 1.5, 'written-off': 5};
+            var aOrder = a._isOverdue ? 0 : (statusOrder[a.status] || 5);
+            var bOrder = b._isOverdue ? 0 : (statusOrder[b.status] || 5);
+            if (aOrder !== bOrder) return aOrder - bOrder;
+            if (a._isOverdue && b._isOverdue) return b._daysOverdue - a._daysOverdue;
+            var aDue = a.due_date || '9999-99-99';
+            var bDue = b.due_date || '9999-99-99';
+            return aDue < bDue ? -1 : aDue > bDue ? 1 : 0;
+          });
+      }
+
+      populateColumn('cards-invoices', 'count-invoices', invoiceItems, createInvoiceCard, 'invoices');
+
+      /* --- Summary Bar: Overdue Invoices --- */
+      var overdueCount = 0;
+      if (invoicesResult) {
+        var todayStr2 = new Date().getFullYear() + '-' +
+          String(new Date().getMonth() + 1).padStart(2, '0') + '-' +
+          String(new Date().getDate()).padStart(2, '0');
+        overdueCount = invoicesResult.filter(function(r) {
+          return r.status === 'sent' && r.due_date && r.due_date < todayStr2;
+        }).length;
+      }
+      document.getElementById('stat-overdue').textContent = overdueCount;
     })();
   </script>
 
