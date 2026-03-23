@@ -24,4 +24,15 @@ else
   echo "Built docs/tasks.json (empty -- no active tasks)"
 fi
 
+# Compile latest triage run -> docs/triage.json
+LATEST_TRIAGE=$(ls -t "$REPO_ROOT/data/triage/"*.jsonl 2>/dev/null | head -1)
+if [ -n "$LATEST_TRIAGE" ] && [ -s "$LATEST_TRIAGE" ]; then
+  jq -s '.' "$LATEST_TRIAGE" > "$REPO_ROOT/docs/triage.json"
+  TRIAGE_COUNT=$(jq 'length' "$REPO_ROOT/docs/triage.json")
+  echo "Built docs/triage.json ($TRIAGE_COUNT entries from $(basename "$LATEST_TRIAGE"))"
+else
+  echo "[]" > "$REPO_ROOT/docs/triage.json"
+  echo "Built docs/triage.json (empty -- no triage data yet)"
+fi
+
 echo "Dashboard data build complete."
