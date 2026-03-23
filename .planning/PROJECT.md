@@ -29,6 +29,10 @@ Offload cognitive load — Claude handles email triage and task execution so Gle
 - Document analysis with executive summary output (contracts, meetings, docs, comms) — Phase 3
 - Task output saved to repo (data/tasks/{id}/) and displayed inline — Phase 3
 - Task lifecycle: pending → in-progress → completed with activity feed logging — Phase 3
+- NDJSON compiled to JSON for dashboard consumption (feed, tasks, triage) — Phase 4
+- GitHub Pages dashboard auto-deployed from docs/ — Phase 4
+- Mobile-first responsive dashboard (tabs on phone, Kanban on desktop) — Phase 4
+- Notion-style aesthetics with system auto dark/light mode — Phase 4
 
 ### Active
 
@@ -98,4 +102,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after Phase 3 completion*
+*Last updated: 2026-03-23 after Phase 4 completion — v1 milestone complete*
