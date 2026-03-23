@@ -82,7 +82,7 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 04-01-PLAN.md -- Build pipeline: triage.json compilation and auto-rebuild wiring into slash commands
+- [x] 04-01-PLAN.md -- Build pipeline: triage.json compilation and auto-rebuild wiring into slash commands
 - [ ] 04-02-PLAN.md -- Dashboard HTML: single-page responsive dashboard with Kanban layout and visual verification
 
 ## Progress
