@@ -17,13 +17,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Email Triage
 
-- [ ] **EMAIL-01**: Claude can scan Gmail inbox and retrieve unread and recent emails via MCP
-- [ ] **EMAIL-02**: Emails categorized into 4 buckets: urgent, needs-response, informational, low-priority
-- [ ] **EMAIL-03**: Starred emails surface as highest-priority "needs my action" queue
+- [x] **EMAIL-01**: Claude can scan Gmail inbox and retrieve unread and recent emails via MCP
+- [x] **EMAIL-02**: Emails categorized into 4 buckets: urgent, needs-response, informational, low-priority
+- [x] **EMAIL-03**: Starred emails surface as highest-priority "needs my action" queue
 - [x] **EMAIL-04**: Email priority classification based on sender importance (known clients vs unknown) and content intent
-- [ ] **EMAIL-05**: Claude generates draft replies saved as local markdown and created as Gmail drafts
-- [ ] **EMAIL-06**: Human-in-the-loop approval required before any response is sent (enforced by hardened MCP)
-- [ ] **EMAIL-07**: Actionable items detected in emails — contracts, invoices, meeting requests, deadlines — with suggested next steps
+- [x] **EMAIL-05**: Claude generates draft replies saved as local markdown and created as Gmail drafts
+- [x] **EMAIL-06**: Human-in-the-loop approval required before any response is sent (enforced by hardened MCP)
+- [x] **EMAIL-07**: Actionable items detected in emails — contracts, invoices, meeting requests, deadlines — with suggested next steps
 - [x] **EMAIL-08**: Email preprocessing pipeline strips HTML, signatures, and reply chains to control token costs
 
 ### Task Execution
@@ -94,13 +94,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-03 | Phase 1 | Complete |
 | FOUND-04 | Phase 1 | Complete |
 | FOUND-05 | Phase 1 | Complete |
-| EMAIL-01 | Phase 2 | Pending |
-| EMAIL-02 | Phase 2 | Pending |
-| EMAIL-03 | Phase 2 | Pending |
+| EMAIL-01 | Phase 2 | Complete |
+| EMAIL-02 | Phase 2 | Complete |
+| EMAIL-03 | Phase 2 | Complete |
 | EMAIL-04 | Phase 2 | Complete |
-| EMAIL-05 | Phase 2 | Pending |
-| EMAIL-06 | Phase 2 | Pending |
-| EMAIL-07 | Phase 2 | Pending |
+| EMAIL-05 | Phase 2 | Complete |
+| EMAIL-06 | Phase 2 | Complete |
+| EMAIL-07 | Phase 2 | Complete |
 | EMAIL-08 | Phase 2 | Complete |
 | TASK-01 | Phase 3 | Pending |
 | TASK-02 | Phase 3 | Pending |

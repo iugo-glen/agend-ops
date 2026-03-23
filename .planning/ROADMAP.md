@@ -13,7 +13,7 @@ Agend Ops delivers cognitive load relief in four phases: first lay the infrastru
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Foundation** - Google OAuth, hardened MCP server, data schema, repo structure, and project configuration
-- [ ] **Phase 2: Email Triage** - Claude scans inbox, categorizes emails, surfaces starred queue, generates drafts, detects actionable items
+- [x] **Phase 2: Email Triage** - Claude scans inbox, categorizes emails, surfaces starred queue, generates drafts, detects actionable items (completed 2026-03-23)
 - [ ] **Phase 3: Task Execution** - Manual and proactive task kickoff, document retrieval from Drive, analysis, and response generation
 - [ ] **Phase 4: Dashboard** - GitHub Pages mobile-first dashboard showing email status, starred queue, activity feed, and pending tasks
 
@@ -46,11 +46,11 @@ Plans:
   3. Claude generates draft replies as local markdown files and creates corresponding Gmail drafts -- no email is ever sent automatically
   4. Actionable items (contracts, invoices, meeting requests, deadlines) are detected and presented with suggested next steps
   5. Every triage action is logged to data/feed.jsonl with timestamp, trigger, action, and outcome
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 02-01-PLAN.md -- Triage data contracts: schema extensions, client domain seed list, email-scanner subagent definition
-- [ ] 02-02-PLAN.md -- Triage engine: full subagent prompt, triage-inbox command update, live verification
+- [x] 02-02-PLAN.md -- Triage engine: full subagent prompt, triage-inbox command update, live verification
 
 ### Phase 3: Task Execution
 **Goal**: Glen can delegate tasks to Claude ("review the contract Sarah sent", "prep for Thursday meeting") and receive analyzed documents, summaries, and draft responses
@@ -83,6 +83,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-03-23 |
-| 2. Email Triage | 0/2 | Planned | - |
+| 2. Email Triage | 2/2 | Complete   | 2026-03-23 |
 | 3. Task Execution | 0/? | Not started | - |
 | 4. Dashboard | 0/? | Not started | - |
