@@ -1,1 +1,15 @@
-null
+{
+  "ts": "2026-03-23T20:23:45+10:30",
+  "type": "briefing",
+  "summary": "Daily briefing generated for 2026-03-23: 3 triage runs, 110 emails processed, 19 pending tasks, 2 urgent items flagged (AHRI onboarding + IAS tax return)",
+  "level": "info",
+  "trigger": "scheduled",
+  "details": {
+    "briefing_file": "data/briefings/2026-03-23.md",
+    "triage_runs": 3,
+    "total_emails": 110,
+    "pending_tasks": 19,
+    "completed_tasks": 2,
+    "urgent_items": 2
+  }
+}

@@ -117,7 +117,7 @@
   },
   {
     "ts": "2026-03-23T20:23:45+10:30",
-    "type": "system",
+    "type": "briefing",
     "summary": "Daily briefing generated for 2026-03-23: 3 triage runs, 110 emails processed, 19 pending tasks, 2 urgent items flagged (AHRI onboarding + IAS tax return)",
     "level": "info",
     "trigger": "scheduled",
