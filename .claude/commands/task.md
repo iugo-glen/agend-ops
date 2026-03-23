@@ -122,6 +122,8 @@ Use the **Task** tool to dispatch to the task-executor subagent:
 - **Agent:** `task-executor`
 - **Instruction:** The full task record as JSON, followed by: "Execute this task following your system prompt step by step. Return the formatted summary when complete."
 
+**Fallback:** If the `task-executor` agent type is not available (agent discovery happens at session start), read `.claude/agents/task-executor.md` and execute the task inline following its system prompt directly. This produces identical results without the subagent dispatch.
+
 ### Step 9: Display results
 
 Display the subagent's returned summary directly (inline in the conversation).
@@ -146,6 +148,7 @@ Execute a specific pending task from the queue.
 5. **If found and status is "pending":** Dispatch to task-executor subagent using the Task tool:
    - **Agent:** `task-executor`
    - **Instruction:** The full task record as JSON, followed by: "Execute this task following your system prompt step by step. Return the formatted summary when complete."
+   - **Fallback:** If `task-executor` agent type is not available, read `.claude/agents/task-executor.md` and execute inline following its system prompt directly.
 6. Display the subagent's returned summary directly.
 
 ---
