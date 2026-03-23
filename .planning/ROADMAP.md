@@ -107,7 +107,7 @@ Plans:
 
 Plans:
 - [x] 05-01-PLAN.md -- Data contracts: feed schema extension, build script update, /daily-briefing command
-- [ ] 05-02-PLAN.md -- GitHub Actions scheduled triage workflow with MCP config and Desktop task test
+- [x] 05-02-PLAN.md -- GitHub Actions scheduled triage workflow (fallback) and Desktop scheduled task (primary, MCP works with full binary paths)
 - [ ] 05-03-PLAN.md -- Dashboard briefing summary banner and visual verification
 
 ### Phase 6: Daily Task Management
@@ -155,7 +155,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8
 | 2. Email Triage | v1.0 | 2/2 | Complete | 2026-03-23 |
 | 3. Task Execution | v1.0 | 4/4 | Complete | 2026-03-23 |
 | 4. Dashboard | v1.0 | 2/2 | Complete | 2026-03-23 |
-| 5. Scheduled Automation | v2.0 | 0/3 | Planning | - |
+| 5. Scheduled Automation | v2.0 | 2/3 | Executing | - |
 | 6. Daily Task Management | v2.0 | 0/? | Not started | - |
 | 7. Invoice Tracking | v2.0 | 0/? | Not started | - |
 | 8. Telegram Mobile Commands | v2.0 | 0/? | Not started | - |

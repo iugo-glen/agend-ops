@@ -13,7 +13,7 @@ Requirements for milestone v2.0: Autonomous Operations.
 
 ### Scheduling
 
-- [ ] **SCHED-01**: Claude Desktop recurring task runs /triage-inbox on a configurable schedule (test MCP access, document fallback to GitHub Actions)
+- [x] **SCHED-01**: Claude Desktop recurring task runs /triage-inbox on a configurable schedule (MCP works with full binary paths; GitHub Actions documented as fallback)
 - [x] **SCHED-02**: Dashboard data auto-rebuilds after each scheduled triage run
 - [x] **SCHED-03**: Daily briefing generated each morning -- email status, pending tasks, today's to-dos, key deadlines
 
@@ -65,7 +65,7 @@ Deferred beyond v2. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCHED-01 | Phase 5 | Pending |
+| SCHED-01 | Phase 5 | Complete |
 | SCHED-02 | Phase 5 | Complete |
 | SCHED-03 | Phase 5 | Complete |
 | TODO-01 | Phase 6 | Pending |
