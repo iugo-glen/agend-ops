@@ -66,7 +66,7 @@ Plans:
 Plans:
 - [x] 03-01-PLAN.md -- Task execution contracts: extended schema and task-executor subagent definition
 - [x] 03-02-PLAN.md -- Task execution commands: enhanced /task, auto-queue pipeline, /status update, live verification
-- [ ] 03-03-PLAN.md -- Gap closure: execute auto-queue pipeline against existing triage data (TASK-02)
+- [x] 03-03-PLAN.md -- Gap closure: execute auto-queue pipeline against existing triage data (TASK-02)
 - [ ] 03-04-PLAN.md -- Gap closure: run task to full completion with output files (TASK-04, TASK-05)
 
 ### Phase 4: Dashboard
@@ -90,5 +90,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-03-23 |
 | 2. Email Triage | 2/2 | Complete   | 2026-03-23 |
-| 3. Task Execution | 2/4 | Gap closure | - |
+| 3. Task Execution | 3/4 | Gap closure | - |
 | 4. Dashboard | 0/? | Not started | - |
