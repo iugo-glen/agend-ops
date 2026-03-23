@@ -123,7 +123,7 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 06-01-PLAN.md -- Todo schema, /todo command, build script and validation extension
+- [x] 06-01-PLAN.md -- Todo schema, /todo command, build script and validation extension
 - [ ] 06-02-PLAN.md -- Daily briefing todo integration and dashboard Today tab
 
 ### Phase 7: Invoice Tracking

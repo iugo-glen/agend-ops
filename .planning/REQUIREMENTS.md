@@ -19,8 +19,8 @@ Requirements for milestone v2.0: Autonomous Operations.
 
 ### Daily Task Management
 
-- [ ] **TODO-01**: /todo command supports add, complete, list, and prioritize operations
-- [ ] **TODO-02**: To-do items stored in NDJSON (data/todos/active.jsonl) with schema
+- [x] **TODO-01**: /todo command supports add, complete, list, and prioritize operations
+- [x] **TODO-02**: To-do items stored in NDJSON (data/todos/active.jsonl) with schema
 - [ ] **TODO-03**: Daily briefing integrates to-do items alongside email and task status
 - [ ] **TODO-04**: Dashboard "Today" tab shows daily to-dos with completion status
 
@@ -68,8 +68,8 @@ Deferred beyond v2. Tracked but not in current roadmap.
 | SCHED-01 | Phase 5 | Complete |
 | SCHED-02 | Phase 5 | Complete |
 | SCHED-03 | Phase 5 | Complete |
-| TODO-01 | Phase 6 | Pending |
-| TODO-02 | Phase 6 | Pending |
+| TODO-01 | Phase 6 | Complete |
+| TODO-02 | Phase 6 | Complete |
 | TODO-03 | Phase 6 | Pending |
 | TODO-04 | Phase 6 | Pending |
 | INV-01 | Phase 7 | Pending |
