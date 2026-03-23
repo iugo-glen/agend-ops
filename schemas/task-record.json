@@ -40,6 +40,27 @@
     "completed_at": {
       "type": ["string", "null"],
       "description": "ISO 8601 timestamp when task was completed"
+    },
+    "task_type": {
+      "type": ["string", "null"],
+      "enum": ["contract-review", "meeting-prep", "document-summary", "draft-comms", null],
+      "description": "Type of task, determines analysis approach. Null for legacy tasks created before this field existed."
+    },
+    "output_dir": {
+      "type": ["string", "null"],
+      "description": "Path to task output directory (e.g., data/tasks/task-2026-03-23-001/). Null until task execution begins."
+    },
+    "source_triage": {
+      "type": ["string", "null"],
+      "description": "Triage file path if task originated from triage (e.g., data/triage/2026-03-23T004602.jsonl). Null for manual tasks."
+    },
+    "client_name": {
+      "type": ["string", "null"],
+      "description": "Associated client name if task is client-related. Populated from triage record or client lookup."
+    },
+    "draft_id": {
+      "type": ["string", "null"],
+      "description": "Gmail draft ID if a draft was created on task completion. Null if task was not email-triggered."
     }
   },
   "additionalProperties": false
