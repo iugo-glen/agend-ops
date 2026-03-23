@@ -61,7 +61,11 @@ Plans:
   2. After triage, Claude proactively suggests tasks based on detected actionable items ("Found a contract -- want me to review it?")
   3. Claude retrieves documents from Google Drive and produces analysis (key terms, risks, obligations, deadlines)
   4. Completed tasks produce a draft response or summary that Glen can review and use
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md -- Task execution contracts: extended schema and task-executor subagent definition
+- [ ] 03-02-PLAN.md -- Task execution commands: enhanced /task, auto-queue pipeline, /status update, live verification
 
 ### Phase 4: Dashboard
 **Goal**: Glen can check his phone and see at a glance: unread email count, starred queue, recent activity, and pending task suggestions -- without opening Claude Code
@@ -84,5 +88,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-03-23 |
 | 2. Email Triage | 2/2 | Complete   | 2026-03-23 |
-| 3. Task Execution | 0/? | Not started | - |
+| 3. Task Execution | 0/2 | Planning complete | - |
 | 4. Dashboard | 0/? | Not started | - |
