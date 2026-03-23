@@ -52,4 +52,13 @@ else
   echo "Built docs/briefing.json (empty -- no briefing data yet)"
 fi
 
+# Compile active todos -> docs/todos.json
+if [ -s "$REPO_ROOT/data/todos/active.jsonl" ]; then
+  jq -s '.' "$REPO_ROOT/data/todos/active.jsonl" > "$REPO_ROOT/docs/todos.json"
+  echo "Built docs/todos.json ($(jq length "$REPO_ROOT/docs/todos.json") entries)"
+else
+  echo "[]" > "$REPO_ROOT/docs/todos.json"
+  echo "Built docs/todos.json (empty -- no active todos)"
+fi
+
 echo "Dashboard data build complete."

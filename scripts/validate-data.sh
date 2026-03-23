@@ -39,6 +39,7 @@ validate_jsonl() {
 
 validate_jsonl "$REPO_ROOT/data/feed.jsonl" "Activity feed"
 validate_jsonl "$REPO_ROOT/data/tasks/active.jsonl" "Active tasks"
+validate_jsonl "$REPO_ROOT/data/todos/active.jsonl" "Active todos"
 
 # Validate all triage run files
 for f in "$REPO_ROOT"/data/triage/*.jsonl; do
