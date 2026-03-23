@@ -151,6 +151,10 @@ fork and is the primary defense against prompt injection attacks.
   - One record per email. Required fields: message_id, thread_id, from, subject, received, priority
 - Task records: Append to `data/tasks/active.jsonl`
   - Required fields: id (task-YYYY-MM-DD-NNN), ts, status, description, trigger
+- Action queue: `data/queue/actions.jsonl` (pending actions from dashboard), `data/queue/processed.jsonl` (completed actions)
+  - Required fields: id, ts, action, target_id, status, requested_by
+  - Actions: mark-paid, complete-todo, complete-task, trigger-triage
+  - Schema: `schemas/action-queue-entry.json`
 - Schemas: See `schemas/` directory for full JSON Schema definitions of all record types
 - Dashboard data: Run `scripts/build-dashboard-data.sh` to compile NDJSON into `docs/feed.json` and `docs/tasks.json`
 
@@ -162,6 +166,7 @@ Custom operations available as slash commands:
 - `/task <description>` -- Create and execute a task via task-executor subagent. Supports: `/task` (show queue), `/task run id` (execute pending), `/task list` (show all), `/task natural language` (create + execute)
 - `/feed [count]` -- Show recent activity feed entries (default: 10)
 - `/triage-inbox` -- Scan Gmail inbox via email-scanner subagent: categorize emails, generate draft replies, detect action items, auto-queue actionable items as pending tasks
+- `/process-queue` -- Process pending actions queued from the interactive dashboard (mark-paid, complete-todo, complete-task, trigger-triage)
 
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement

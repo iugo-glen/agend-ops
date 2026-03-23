@@ -54,7 +54,28 @@ Show a quick status summary for Agend Ops:
       Completed today: {N}
       ```
 
-4. **System Health:** Confirm hardened-workspace MCP server is available.
+4. **Dashboard Actions:**
+   Check `data/queue/actions.jsonl` for queued entries:
+
+   ```bash
+   if [ -f data/queue/actions.jsonl ] && [ -s data/queue/actions.jsonl ]; then
+     jq -s '[.[] | select(.status == "queued")]' data/queue/actions.jsonl
+   else
+     echo "[]"
+   fi
+   ```
+
+   Report pending action count:
+   - If pending actions exist: "{N} pending dashboard actions" followed by a brief list:
+     ```
+     Dashboard Actions: {N} pending
+     - mark-paid: {target_id}
+     - complete-todo: {target_id}
+     Run /process-queue to execute pending actions.
+     ```
+   - If no pending actions: "No pending dashboard actions"
+
+5. **System Health:** Confirm hardened-workspace MCP server is available.
 
 Format output as a clean, scannable summary with counts and timestamps.
 If any data file is empty or missing, report "No data yet" for that section.

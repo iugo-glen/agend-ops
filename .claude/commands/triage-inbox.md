@@ -7,6 +7,25 @@ Scan Glen's Gmail inbox, categorize emails by priority, generate draft replies f
 
 ## Execution
 
+0. **Process pending dashboard actions first:**
+   Before scanning the inbox, check `data/queue/actions.jsonl` for pending actions. If any queued actions exist, process them using the /process-queue flow (mark-paid, complete-todo, complete-task). This ensures dashboard actions are processed promptly even if Glen only runs triage.
+
+   ```bash
+   if [ -f data/queue/actions.jsonl ] && [ -s data/queue/actions.jsonl ]; then
+     PENDING=$(jq -s '[.[] | select(.status == "queued")] | length' data/queue/actions.jsonl)
+     if [ "$PENDING" -gt 0 ]; then
+       echo "$PENDING pending dashboard action(s) found. Processing first..."
+     fi
+   fi
+   ```
+
+   **IMPORTANT:** Skip any `trigger-triage` actions found in the queue to prevent recursive triage. Only process `mark-paid`, `complete-todo`, and `complete-task` actions during this pre-triage step.
+
+   If actions were processed, report briefly before continuing to inbox scan:
+   ```
+   Processed {N} dashboard actions before triage scan.
+   ```
+
 1. **Record start time** for duration tracking: note the current time before dispatching.
 
 2. **Dispatch to the email-scanner subagent** using the Task tool:
