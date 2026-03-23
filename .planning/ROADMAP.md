@@ -90,7 +90,8 @@ Plans:
 - [x] **Phase 5: Scheduled Automation** - GitHub Actions daily triage, auto-dashboard rebuild, and morning briefing (completed 2026-03-23)
 - [ ] **Phase 6: Daily Task Management** - /todo commands, NDJSON storage, briefing integration, and dashboard to-do tab
 - [x] **Phase 7: Invoice Tracking** - /invoice commands, triage pipeline hook, Xero sync, and dashboard invoice tab (completed 2026-03-23)
-- [ ] **Phase 8: Telegram Mobile Commands** - Two-way command execution and approval flow from phone
+- [ ] **Phase 8: Interactive Dashboard** - Next.js on Coolify with auth, actions, and live data
+- [ ] **Phase 9: Telegram Mobile Commands** - Two-way command execution and approval flow from phone (deferred)
 
 ## Phase Details
 
@@ -143,9 +144,21 @@ Plans:
 - [x] 07-02-PLAN.md -- Triage pipeline invoice auto-queue and daily briefing invoice section
 - [x] 07-03-PLAN.md -- Dashboard "Invoices" tab with overdue highlighting and visual verification
 
-### Phase 8: Telegram Mobile Commands
-**Goal**: Glen can send commands and approve actions from his phone via Telegram, without opening a laptop or the dashboard
+### Phase 8: Interactive Dashboard
+**Goal**: Glen has a secured, actionable dashboard on Coolify — auth-protected, with buttons to mark invoices paid, complete todos, approve drafts, and trigger triage from his phone
 **Depends on**: Phase 7
+**Requirements**: DASH-01, DASH-02, DASH-03, DASH-04
+**Success Criteria** (what must be TRUE):
+  1. Next.js app deployed on Coolify with Google OAuth login (only Glen can access)
+  2. Dashboard reads live NDJSON data directly from the git repo on the home server
+  3. Glen can take actions from the dashboard: mark invoice paid, complete todo, approve/view draft, trigger triage
+  4. Clickable Gmail links open emails and drafts directly from dashboard cards
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 9: Telegram Mobile Commands (deferred)
+**Goal**: Glen can send commands and approve actions from his phone via Telegram, without opening a laptop or the dashboard
+**Depends on**: Phase 8
 **Requirements**: TELE-01, TELE-02, TELE-03
 **Success Criteria** (what must be TRUE):
   1. A Telegram channel is configured and paired with Claude Code via the Channels plugin
@@ -156,7 +169,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 5 -> 6 -> 7 -> 8
+Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -164,7 +177,8 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8
 | 2. Email Triage | v1.0 | 2/2 | Complete | 2026-03-23 |
 | 3. Task Execution | v1.0 | 4/4 | Complete | 2026-03-23 |
 | 4. Dashboard | v1.0 | 2/2 | Complete | 2026-03-23 |
-| 5. Scheduled Automation | v2.0 | 3/3 | Complete   | 2026-03-23 |
+| 5. Scheduled Automation | v2.0 | 3/3 | Complete | 2026-03-23 |
 | 6. Daily Task Management | v2.0 | 2/2 | Complete | 2026-03-23 |
-| 7. Invoice Tracking | v2.0 | 3/3 | Complete   | 2026-03-23 |
-| 8. Telegram Mobile Commands | v2.0 | 0/? | Not started | - |
+| 7. Invoice Tracking | v2.0 | 3/3 | Complete | 2026-03-23 |
+| 8. Interactive Dashboard | v2.0 | 0/? | Not started | - |
+| 9. Telegram (deferred) | v3.0 | 0/? | Not started | - |

@@ -31,15 +31,22 @@ Requirements for milestone v2.0: Autonomous Operations.
 - [x] **INV-03**: Triage pipeline auto-detects invoice requests and creates invoice records
 - [x] **INV-04**: Dashboard "Invoices" tab shows pending, overdue, and recently paid invoices
 
-### Telegram Mobile Commands
+### Interactive Dashboard
 
-- [ ] **TELE-01**: Telegram channel configured with Claude Code Channels plugin
-- [ ] **TELE-02**: Two-way command execution -- /triage, /task, /todo, /status, /invoice from Telegram
-- [ ] **TELE-03**: Approval flow -- Claude sends draft previews to Telegram, Glen approves/rejects from phone
+- [ ] **DASH-01**: Next.js app deployed on Coolify with Google OAuth login (only Glen can access)
+- [ ] **DASH-02**: Dashboard reads live NDJSON data directly from git repo on home server
+- [ ] **DASH-03**: Action buttons: mark invoice paid, complete todo, approve/view Gmail draft, trigger triage
+- [ ] **DASH-04**: Clickable Gmail links on email and invoice cards (carries over from current dashboard)
 
 ## Future Requirements
 
 Deferred beyond v2. Tracked but not in current roadmap.
+
+### Telegram Mobile Commands
+
+- **TELE-01**: Telegram channel configured with Claude Code Channels plugin
+- **TELE-02**: Two-way command execution from Telegram
+- **TELE-03**: Approval flow from Telegram
 
 ### Intelligence
 
@@ -76,9 +83,10 @@ Deferred beyond v2. Tracked but not in current roadmap.
 | INV-02 | Phase 7 | Complete |
 | INV-03 | Phase 7 | Complete |
 | INV-04 | Phase 7 | Complete |
-| TELE-01 | Phase 8 | Pending |
-| TELE-02 | Phase 8 | Pending |
-| TELE-03 | Phase 8 | Pending |
+| DASH-01 | Phase 8 | Pending |
+| DASH-02 | Phase 8 | Pending |
+| DASH-03 | Phase 8 | Pending |
+| DASH-04 | Phase 8 | Pending |
 
 **Coverage:**
 - v2 requirements: 14 total

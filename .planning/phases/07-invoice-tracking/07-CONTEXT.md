@@ -1,7 +1,7 @@
 # Phase 7: Invoice Tracking - Context
 
 **Gathered:** 2026-03-23
-**Status:** Ready for planning
+**Status:** Complete
 
 <domain>
 ## Phase Boundary
@@ -58,22 +58,7 @@ Add invoice tracking to Agend Ops — /invoice command, NDJSON schema, triage pi
 <canonical_refs>
 ## Canonical References
 
-**Downstream agents MUST read these before planning or implementing.**
-
-### Patterns to follow (Phase 6 is the template)
-- `schemas/todo-record.json` — Schema pattern to replicate for invoices
-- `.claude/commands/todo.md` — Command pattern to follow for /invoice
-- `.claude/commands/daily-briefing.md` — Briefing that may need invoice section
-- `scripts/build-dashboard-data.sh` — Needs invoices.json compilation
-- `docs/index.html` — Dashboard that needs "Invoices" tab
-
-### Triage pipeline (Phase 2)
-- `.claude/agents/email-scanner.md` — Triage agent that detects action_type: "invoice"
-- `.claude/commands/triage-inbox.md` — Has auto-queue pipeline to extend
-
-### Project context
-- `.planning/PROJECT.md` — Core value, constraints
-- `.planning/REQUIREMENTS.md` — INV-01 through INV-04
+No external specs — requirements fully captured in decisions above
 
 </canonical_refs>
 
@@ -82,23 +67,16 @@ Add invoice tracking to Agend Ops — /invoice command, NDJSON schema, triage pi
 
 ### Reusable Assets
 - Phase 6 is the exact template: schema → command → build script → dashboard tab
-- Triage already detects action_type: "invoice" — just needs a new auto-queue path
-- Build script pattern: add invoices.json compilation block
-- Dashboard tab pattern: add "Invoices" column/tab
 
 ### Established Patterns
 - NDJSON append-only, schema-validated
-- Command with multiple modes (list, create, update, filter)
-- Dashboard tabs with cards, priority/status badges
-- Auto-queue from triage action_type detection
+- Command with multiple modes
+- Dashboard tabs with cards
 
 ### Integration Points
 - data/invoices/active.jsonl — new data file
 - schemas/invoice-record.json — new schema
 - .claude/commands/invoice.md — new command
-- .claude/commands/triage-inbox.md — extend auto-queue for invoice type
-- docs/index.html — add "Invoices" tab
-- scripts/build-dashboard-data.sh — add invoices.json
 
 </code_context>
 
