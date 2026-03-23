@@ -77,6 +77,26 @@ Compile the daily morning briefing from existing Agend Ops data. This command re
       - Flag due-today items: where due_date == today
       If no active to-dos, note "No active to-dos."
 
+   f. **Invoice Status** -- Read active invoices:
+      ```bash
+      jq -r 'select(.status != "paid" and .status != "written-off")' data/invoices/active.jsonl 2>/dev/null | jq -s '.'
+      ```
+      If data/invoices/active.jsonl exists and has outstanding items:
+      - Count by status: reminders, draft, sent
+      - Compute overdue: status == "sent" AND due_date < today (per D-02, never store overdue)
+      - Calculate total outstanding amount (sum of amount where status is "sent"):
+        ```bash
+        jq -s '[.[] | select(.status == "sent") | .amount // 0] | add // 0' data/invoices/active.jsonl
+        ```
+      - Calculate total overdue amount:
+        ```bash
+        TODAY=$(date +%Y-%m-%d)
+        jq -s --arg today "$TODAY" '[.[] | select(.status == "sent" and .due_date != null and .due_date < $today) | .amount // 0] | add // 0' data/invoices/active.jsonl
+        ```
+      - List overdue invoices with project code and days overdue
+      - List invoice reminders (things Glen needs to invoice)
+      If no active invoices, note "No outstanding invoices."
+
    c. **Key Deadlines (Next 48 Hours)** -- Scan recent triage records for action items with deadlines:
       Look at triage files from the last 48 hours:
       ```bash
@@ -123,6 +143,15 @@ Compile the daily morning briefing from existing Agend Ops data. This command re
    - [!normal] {text} #{category}
    (or "No active to-dos.")
 
+   ## Invoice Status
+   - {N} outstanding ({N} overdue, {N} awaiting payment, {N} draft, {N} reminders)
+   - Total outstanding: ${total} AUD
+   - Overdue: ${overdue_total} AUD
+     - [!] {project_code} | {client_name} | ${amount} | {days} days overdue
+   - Reminders (need to invoice):
+     - [?] {client_name} | {description}
+   (or "No outstanding invoices.")
+
    ## Key Deadlines (Next 48 Hours)
    - {deadline description} -- from {sender}
    (or "No upcoming deadlines detected.")
@@ -149,7 +178,10 @@ Compile the daily morning briefing from existing Agend Ops data. This command re
        "urgent": {N},
        "pending_tasks": {N},
        "deadlines_48h": {N},
-       "active_todos": {N}
+       "active_todos": {N},
+       "outstanding_invoices": {N},
+       "overdue_invoices": {N},
+       "invoice_reminders": {N}
      }
    }
    ```
@@ -158,7 +190,7 @@ Compile the daily morning briefing from existing Agend Ops data. This command re
 7. **Rebuild dashboard data and commit:**
    ```bash
    bash scripts/build-dashboard-data.sh
-   git add data/briefings/ data/feed.jsonl data/todos/ docs/feed.json docs/briefing.json docs/tasks.json docs/triage.json docs/todos.json
+   git add data/briefings/ data/feed.jsonl data/todos/ data/invoices/ docs/feed.json docs/briefing.json docs/tasks.json docs/triage.json docs/todos.json docs/invoices.json
    git commit -m "data: generate daily briefing for ${TODAY}"
    ```
    If the commit fails (nothing changed), continue without error.
