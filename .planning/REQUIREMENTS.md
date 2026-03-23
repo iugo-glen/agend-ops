@@ -30,9 +30,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **TASK-01**: Manual task kickoff via natural language commands in Claude Code
 - [ ] **TASK-02**: Claude proactively suggests tasks from email triage results ("Found a contract — want me to review it?")
-- [ ] **TASK-03**: Document retrieval from Google Drive via MCP for task execution
-- [ ] **TASK-04**: Document analysis — summarize key terms, flag risks, identify obligations, highlight deadlines
-- [ ] **TASK-05**: Draft response or summary generation for completed task outcomes
+- [x] **TASK-03**: Document retrieval from Google Drive via MCP for task execution
+- [x] **TASK-04**: Document analysis — summarize key terms, flag risks, identify obligations, highlight deadlines
+- [x] **TASK-05**: Draft response or summary generation for completed task outcomes
 
 ### Visibility
 
@@ -104,9 +104,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EMAIL-08 | Phase 2 | Complete |
 | TASK-01 | Phase 3 | Pending |
 | TASK-02 | Phase 3 | Pending |
-| TASK-03 | Phase 3 | Pending |
-| TASK-04 | Phase 3 | Pending |
-| TASK-05 | Phase 3 | Pending |
+| TASK-03 | Phase 3 | Complete |
+| TASK-04 | Phase 3 | Complete |
+| TASK-05 | Phase 3 | Complete |
 | VIS-01 | Phase 4 | Pending |
 | VIS-02 | Phase 4 | Pending |
 | VIS-03 | Phase 4 | Pending |
