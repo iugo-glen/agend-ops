@@ -61,4 +61,13 @@ else
   echo "Built docs/todos.json (empty -- no active todos)"
 fi
 
+# Compile active invoices -> docs/invoices.json
+if [ -s "$REPO_ROOT/data/invoices/active.jsonl" ]; then
+  jq -s '.' "$REPO_ROOT/data/invoices/active.jsonl" > "$REPO_ROOT/docs/invoices.json"
+  echo "Built docs/invoices.json ($(jq length "$REPO_ROOT/docs/invoices.json") entries)"
+else
+  echo "[]" > "$REPO_ROOT/docs/invoices.json"
+  echo "Built docs/invoices.json (empty -- no invoice data yet)"
+fi
+
 echo "Dashboard data build complete."

@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "invoice-record",
+  "title": "Invoice Record",
+  "description": "One line in data/invoices/active.jsonl. Tracks invoices for Glen's clients.",
+  "type": "object",
+  "required": ["id", "ts", "status", "client_name", "trigger"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique invoice ID in format inv-YYYY-MM-DD-NNN",
+      "pattern": "^inv-\\d{4}-\\d{2}-\\d{2}-\\d{3}$"
+    },
+    "ts": {
+      "type": "string",
+      "description": "ISO 8601 timestamp with timezone offset when record was created"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["reminder", "draft", "sent", "paid", "disputed", "written-off"],
+      "description": "Current invoice state. 'reminder' = email-detected, not yet in Xero. Overdue is computed from status=sent + due_date < today."
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Client or company name"
+    },
+    "amount": {
+      "type": ["number", "null"],
+      "description": "Invoice total amount (tax-inclusive). Null for reminders where amount is unknown."
+    },
+    "currency": {
+      "type": "string",
+      "default": "AUD",
+      "description": "ISO 4217 currency code. Default AUD."
+    },
+    "tax_amount": {
+      "type": ["number", "null"],
+      "description": "Tax component of the invoice amount. Null if unknown."
+    },
+    "due_date": {
+      "type": ["string", "null"],
+      "description": "Payment due date in YYYY-MM-DD format.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Brief description of what the invoice is for."
+    },
+    "invoice_number": {
+      "type": ["string", "null"],
+      "description": "Invoice number (from Xero or manual). E.g., INV-0042."
+    },
+    "po_number": {
+      "type": ["string", "null"],
+      "description": "Client's purchase order number if provided."
+    },
+    "project_code": {
+      "type": ["string", "null"],
+      "description": "Project code for cross-referencing. E.g., PROP-0324."
+    },
+    "payment_terms": {
+      "type": ["string", "null"],
+      "description": "Payment terms. E.g., 'net 30', 'net 14', 'due on receipt'."
+    },
+    "source_email_id": {
+      "type": ["string", "null"],
+      "description": "Gmail message ID if invoice record originated from email triage."
+    },
+    "xero_invoice_id": {
+      "type": ["string", "null"],
+      "description": "Xero InvoiceID (UUID) if synced from Xero. Null for email-detected reminders."
+    },
+    "trigger": {
+      "type": "string",
+      "enum": ["manual", "triage-suggestion", "xero-sync"],
+      "description": "How the record was created."
+    },
+    "amount_paid": {
+      "type": ["number", "null"],
+      "description": "Amount paid so far (from Xero). Null if unknown."
+    },
+    "completed_at": {
+      "type": ["string", "null"],
+      "description": "ISO 8601 timestamp when invoice was fully paid or written off."
+    }
+  },
+  "additionalProperties": false
+}
