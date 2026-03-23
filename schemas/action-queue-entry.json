@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "action-queue-entry",
+  "title": "Action Queue Entry",
+  "description": "One line in data/queue/actions.jsonl. Tracks actions queued from the interactive dashboard for Claude to process.",
+  "type": "object",
+  "required": ["id", "ts", "action", "target_id", "status", "requested_by"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique action ID with ISO timestamp suffix",
+      "pattern": "^action-.*"
+    },
+    "ts": {
+      "type": "string",
+      "description": "ISO 8601 timestamp when the action was queued"
+    },
+    "action": {
+      "type": "string",
+      "enum": ["mark-paid", "complete-todo", "complete-task", "trigger-triage"],
+      "description": "The action to perform"
+    },
+    "target_id": {
+      "type": "string",
+      "description": "The record ID to act on (e.g., inv-2026-03-23-001). Empty string for trigger-triage."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["queued", "completed", "failed"],
+      "description": "Current processing state"
+    },
+    "requested_by": {
+      "type": "string",
+      "description": "Email address of the user who requested the action"
+    },
+    "processed_at": {
+      "type": ["string", "null"],
+      "description": "ISO 8601 timestamp when the action was processed by Claude"
+    },
+    "result": {
+      "type": ["string", "null"],
+      "description": "Human-readable outcome of the action processing"
+    }
+  },
+  "additionalProperties": false
+}
