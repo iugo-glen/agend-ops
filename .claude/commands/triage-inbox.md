@@ -1,6 +1,6 @@
 ---
 description: Scan Gmail inbox and categorize emails into priority buckets
-allowed-tools: Read, Write, Edit, Bash(jq *), Bash(date *), Bash(wc *), mcp__hardened-workspace__*, Task
+allowed-tools: Read, Write, Edit, Bash(jq *), Bash(date *), Bash(wc *), mcp__hardened-workspace__*, Task, Bash(bash scripts/*), Bash(git *)
 ---
 
 Scan Glen's Gmail inbox, categorize emails by priority, generate draft replies for urgent/client emails, detect action items, auto-queue actionable items as pending tasks, and display a formatted triage briefing.
@@ -84,3 +84,15 @@ Scan Glen's Gmail inbox, categorize emails by priority, generate draft replies f
    ```
 
    If no tasks were queued (all duplicates or no actionable items): do not display this section.
+
+6. **Rebuild dashboard data (per D-07):**
+   After all triage processing and auto-queue is complete, rebuild dashboard JSON files and commit:
+   ```bash
+   bash scripts/build-dashboard-data.sh
+   ```
+   Then stage and commit the updated dashboard data files:
+   ```bash
+   git add docs/feed.json docs/tasks.json docs/triage.json
+   git commit -m "data: rebuild dashboard data after triage"
+   ```
+   If the commit fails (nothing changed), that is fine -- continue without error.

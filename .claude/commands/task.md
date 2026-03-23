@@ -1,6 +1,6 @@
 ---
 description: Create, manage, and execute tasks -- delegates work to the task-executor subagent
-allowed-tools: Read, Write, Edit, Bash(jq *), Bash(date *), Bash(wc *), Task
+allowed-tools: Read, Write, Edit, Bash(jq *), Bash(date *), Bash(wc *), Task, Bash(bash scripts/*), Bash(git *)
 ---
 
 Manage tasks for Agend Ops. Argument: $ARGUMENTS
@@ -170,3 +170,23 @@ Use jq to extract and format the data:
 ```bash
 jq -r '[.id, .status, (.task_type // "untyped"), .description[:60], .ts[:19]] | @tsv' data/tasks/active.jsonl
 ```
+
+---
+
+## Post-Execution: Rebuild Dashboard Data (per D-07)
+
+After any mode that modifies data files (Mode 1 and Mode 4 are read-only, skip them), rebuild dashboard JSON:
+
+```bash
+bash scripts/build-dashboard-data.sh
+```
+
+Then stage and commit:
+```bash
+git add docs/feed.json docs/tasks.json docs/triage.json
+git commit -m "data: rebuild dashboard data after task update"
+```
+
+If the commit fails (nothing changed), continue without error. This applies to:
+- Mode 2 (task creation + execution)
+- Mode 3 (task execution by ID)
