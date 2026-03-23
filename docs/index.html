@@ -142,6 +142,62 @@
       font-weight: 600;
     }
 
+    /* === Briefing Banner === */
+    .briefing-banner {
+      margin: var(--space-sm) var(--space-md);
+      padding: var(--space-md);
+      background: var(--surface-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+
+    .briefing-banner[hidden] {
+      display: none;
+    }
+
+    .briefing-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-sm);
+    }
+
+    .briefing-title {
+      font-size: var(--text-heading);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .briefing-date {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+
+    .briefing-stats {
+      display: flex;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .briefing-stat {
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+    }
+
+    .briefing-stat strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    @media (min-width: 768px) {
+      .briefing-banner {
+        max-width: 1280px;
+        margin: var(--space-sm) auto;
+        padding: var(--space-md) var(--space-xl);
+      }
+    }
+
     /* === Tab Bar (mobile only) === */
     .tab-bar {
       display: flex;
@@ -482,6 +538,19 @@
     <span class="summary-pill"><strong id="stat-drafts">--</strong> drafts</span>
   </div>
 
+  <section class="briefing-banner" id="briefing-banner" hidden>
+    <div class="briefing-header">
+      <span class="briefing-title">Today's Briefing</span>
+      <span class="briefing-date" id="briefing-date"></span>
+    </div>
+    <div class="briefing-stats">
+      <span class="briefing-stat"><strong id="brief-emails">--</strong> emails</span>
+      <span class="briefing-stat"><strong id="brief-urgent">--</strong> urgent</span>
+      <span class="briefing-stat"><strong id="brief-tasks">--</strong> pending</span>
+      <span class="briefing-stat"><strong id="brief-deadlines">--</strong> deadlines</span>
+    </div>
+  </section>
+
   <nav class="tab-bar" role="tablist" aria-label="Dashboard columns">
     <button class="tab-btn" role="tab" aria-selected="true" aria-controls="col-starred" id="tab-starred" tabindex="0">Starred</button>
     <button class="tab-btn" role="tab" aria-selected="false" aria-controls="col-urgent" id="tab-urgent" tabindex="-1">Urgent</button>
@@ -581,7 +650,8 @@
       'task': '\u2713',
       'draft': '\u270F',
       'system': '\u2699',
-      'command': '\u2699'
+      'command': '\u2699',
+      'briefing': '\uD83D\uDCCB'
     };
 
     /* === Card Builders (textContent only -- no innerHTML) === */
@@ -855,22 +925,25 @@
 
     /* === Data Fetch + Render === */
     (async function() {
-      var feedResult, tasksResult, triageResult;
+      var feedResult, tasksResult, triageResult, briefingResult;
 
       try {
         var results = await Promise.allSettled([
           fetch('./feed.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
           fetch('./tasks.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
-          fetch('./triage.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+          fetch('./triage.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
+          fetch('./briefing.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
         ]);
 
         feedResult = results[0].status === 'fulfilled' ? results[0].value : null;
         tasksResult = results[1].status === 'fulfilled' ? results[1].value : null;
         triageResult = results[2].status === 'fulfilled' ? results[2].value : null;
+        briefingResult = results[3].status === 'fulfilled' ? results[3].value : null;
       } catch (err) {
         feedResult = null;
         tasksResult = null;
         triageResult = null;
+        briefingResult = null;
       }
 
       /* --- Summary Bar --- */
@@ -927,6 +1000,22 @@
       document.getElementById('last-updated').textContent = lastTs
         ? 'Last updated: ' + relativeTime(lastTs)
         : 'No data yet';
+
+      /* --- Briefing Banner --- */
+      var banner = document.getElementById('briefing-banner');
+      if (briefingResult && briefingResult !== null && briefingResult.details) {
+        var details = briefingResult.details;
+        document.getElementById('brief-emails').textContent = details.emails_scanned || 0;
+        document.getElementById('brief-urgent').textContent = details.urgent || 0;
+        document.getElementById('brief-tasks').textContent = details.pending_tasks || 0;
+        document.getElementById('brief-deadlines').textContent = details.deadlines_48h || 0;
+        document.getElementById('briefing-date').textContent = briefingResult.details.briefing_file
+          ? briefingResult.details.briefing_file.replace('data/briefings/', '').replace('.md', '')
+          : '';
+        banner.hidden = false;
+      } else {
+        banner.hidden = true;
+      }
 
       /* --- Starred Column --- */
       var starredItems = triageResult
