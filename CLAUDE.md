@@ -161,7 +161,7 @@ Custom operations available as slash commands:
 - `/status` -- Quick summary: recent activity count, triage runs, pending tasks
 - `/task <description>` -- Create a new task or list pending tasks (no args)
 - `/feed [count]` -- Show recent activity feed entries (default: 10)
-- `/triage-inbox` -- Scan Gmail inbox and categorize emails (Phase 2 -- currently stub)
+- `/triage-inbox` -- Scan Gmail inbox via email-scanner subagent: categorize emails, generate draft replies, detect action items
 
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
