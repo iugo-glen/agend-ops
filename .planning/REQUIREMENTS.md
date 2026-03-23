@@ -38,8 +38,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **VIS-01**: Activity feed logged as NDJSON (data/feed.jsonl) with timestamp, trigger, action, inputs, outputs, and outcome
 - [x] **VIS-02**: GitHub Pages dashboard auto-deployed from repo
-- [ ] **VIS-03**: Dashboard displays: unread email count, starred queue, recent activity feed, pending task suggestions
-- [ ] **VIS-04**: Dashboard is mobile-first and responsive — glanceable from phone
+- [x] **VIS-03**: Dashboard displays: unread email count, starred queue, recent activity feed, pending task suggestions
+- [x] **VIS-04**: Dashboard is mobile-first and responsive — glanceable from phone
 
 ## v2 Requirements
 
@@ -109,8 +109,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TASK-05 | Phase 3 | Complete |
 | VIS-01 | Phase 4 | Complete |
 | VIS-02 | Phase 4 | Complete |
-| VIS-03 | Phase 4 | Pending |
-| VIS-04 | Phase 4 | Pending |
+| VIS-03 | Phase 4 | Complete |
+| VIS-04 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 22 total
