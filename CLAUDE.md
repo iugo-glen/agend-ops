@@ -159,9 +159,9 @@ fork and is the primary defense against prompt injection attacks.
 Custom operations available as slash commands:
 
 - `/status` -- Quick summary: recent activity count, triage runs, pending tasks
-- `/task <description>` -- Create a new task or list pending tasks (no args)
+- `/task <description>` -- Create and execute a task via task-executor subagent. Supports: `/task` (show queue), `/task run id` (execute pending), `/task list` (show all), `/task natural language` (create + execute)
 - `/feed [count]` -- Show recent activity feed entries (default: 10)
-- `/triage-inbox` -- Scan Gmail inbox via email-scanner subagent: categorize emails, generate draft replies, detect action items
+- `/triage-inbox` -- Scan Gmail inbox via email-scanner subagent: categorize emails, generate draft replies, detect action items, auto-queue actionable items as pending tasks
 
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
