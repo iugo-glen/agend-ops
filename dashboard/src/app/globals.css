@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* Light mode (default) */
+:root {
+  --surface: #FFFFFF;
+  --surface-secondary: #F7F6F3;
+  --accent: #2383E2;
+  --text-primary: #37352F;
+  --text-secondary: #787774;
+  --border: #E3E2DE;
+  --destructive: #EB5757;
+
+  /* Semantic: priority */
+  --priority-urgent: #EB5757;
+  --priority-needs-response: #F2994A;
+  --priority-informational: #2383E2;
+  --priority-low: #9B9A97;
+
+  /* Semantic: status */
+  --status-pending: #F2994A;
+  --status-completed: #6FCF97;
+  --status-in-progress: #2383E2;
+
+  /* Misc */
+  --starred: #FFCC00;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #191919;
+    --surface-secondary: #252525;
+    --accent: #529CCA;
+    --text-primary: #FFFFFFCF;
+    --text-secondary: #FFFFFF52;
+    --border: #FFFFFF14;
+    --destructive: #EB5757;
+
+    --priority-informational: #529CCA;
+    --status-in-progress: #529CCA;
+  }
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-accent: var(--accent);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-default: var(--border);
+  --color-destructive: var(--destructive);
+  --color-priority-urgent: var(--priority-urgent);
+  --color-priority-needs-response: var(--priority-needs-response);
+  --color-priority-informational: var(--priority-informational);
+  --color-priority-low: var(--priority-low);
+  --color-status-pending: var(--status-pending);
+  --color-status-completed: var(--status-completed);
+  --color-status-in-progress: var(--status-in-progress);
+  --color-starred: var(--starred);
+
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --text-sm: 13px;
+  --text-body: 15px;
+  --text-heading: 18px;
+  --text-display: 28px;
+}
+
+body {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
