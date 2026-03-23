@@ -33,8 +33,8 @@ Requirements for milestone v2.0: Autonomous Operations.
 
 ### Interactive Dashboard
 
-- [ ] **DASH-01**: Next.js app deployed on Coolify with Google OAuth login (only Glen can access)
-- [ ] **DASH-02**: Dashboard reads live NDJSON data directly from git repo on home server
+- [x] **DASH-01**: Next.js app deployed on Coolify with Google OAuth login (only Glen can access)
+- [x] **DASH-02**: Dashboard reads live NDJSON data directly from git repo on home server
 - [ ] **DASH-03**: Action buttons: mark invoice paid, complete todo, approve/view Gmail draft, trigger triage
 - [ ] **DASH-04**: Clickable Gmail links on email and invoice cards (carries over from current dashboard)
 
@@ -83,8 +83,8 @@ Deferred beyond v2. Tracked but not in current roadmap.
 | INV-02 | Phase 7 | Complete |
 | INV-03 | Phase 7 | Complete |
 | INV-04 | Phase 7 | Complete |
-| DASH-01 | Phase 8 | Pending |
-| DASH-02 | Phase 8 | Pending |
+| DASH-01 | Phase 8 | Complete |
+| DASH-02 | Phase 8 | Complete |
 | DASH-03 | Phase 8 | Pending |
 | DASH-04 | Phase 8 | Pending |
 
