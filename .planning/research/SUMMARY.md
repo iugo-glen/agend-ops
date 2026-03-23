@@ -1,213 +1,203 @@
 # Project Research Summary
 
-**Project:** Agend Ops — AI-powered personal operations hub
-**Domain:** Single-user founder automation (email triage, task execution, activity feed, glanceable dashboard)
+**Project:** Agend Ops v2.0 — Autonomous Operations
+**Domain:** AI-powered personal operations hub (Claude Code + MCP + GitHub Pages)
 **Researched:** 2026-03-23
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Agend Ops is a personal AI operations hub that runs entirely inside Claude Code. Unlike SaaS competitors (Lindy, Superhuman, OpenClaw), it keeps all data in a local git repository that Glen owns and controls. The system's architecture is simple but requires careful component selection: the hardened Google Workspace MCP server (c0webster fork) replaces the original to eliminate prompt injection exfiltration vectors, and GitHub Actions replaces Claude Desktop scheduled tasks due to a confirmed platform bug (#36327) that prevents MCP tools from working in Desktop-scheduled contexts. The core runtime is Claude Code acting as orchestrator — reading Gmail, generating drafts, logging activity, and committing results to git — with GitHub Pages serving a static dashboard compiled from the activity feed.
+Agend Ops v2.0 builds an autonomous operations layer on a working v1 foundation. The core pattern is well-established: Claude Code as the AI runtime, hardened MCP servers for Gmail and GitHub access, NDJSON flat files committed to git as the data layer, and GitHub Pages for a glanceable dashboard. V1 delivered interactive triage, task execution, and activity feed — all manual. V2 adds four autonomous capabilities in strict dependency order: scheduled automation via GitHub Actions, a daily to-do management system, invoice tracking extracted from the triage pipeline, and Telegram as a mobile command interface. The research is unusually high-confidence because the existing v1 system is in production and all new v2 components are verified against official documentation.
 
-The recommended build order follows hard technical dependencies: Google OAuth must be in production mode before anything else (testing tokens expire in 7 days, silently breaking the system), and the NDJSON activity feed schema must be established before any data is written. Email triage runs interactively first (debugged manually), then is automated via GitHub Actions once the flows are verified. The dashboard can be built in parallel using mock data and does not block email triage. The most differentiating capability — starred-email-as-intent-queue mapping to Glen's existing Gmail workflow — is table stakes complexity but genuinely distinct from any commercial tool.
+The recommended approach is strict layering. Scheduled automation (GitHub Actions) comes first because it is the most impactful autonomous capability and has the most environmental complexity — it requires separate MCP configuration, Google OAuth credentials stored in GitHub Secrets, and explicit testing before any other phases depend on it. The to-do system comes second because it establishes the schema-plus-command-plus-dashboard-tab pattern that invoice tracking reuses identically in Phase 3. Telegram comes last because it is a pure consumption layer over commands that must already exist, and it is a research preview feature whose instability risk should not propagate backward to earlier stable phases.
 
-The main risks are all well-documented and preventable: token cost explosion from naive email processing (mitigated by two-tier models and prompt caching), prompt injection from email content (mitigated by the hardened MCP fork), silent scheduling failures (mitigated by GitHub Actions over /loop), and scope creep (mitigated by enforcing a 3-MCP-server cap for v1). All research is HIGH confidence, sourced from official Claude Code docs, official MCP repositories, and verified platform bug reports.
+The top risks are operational, not architectural. Google OAuth testing-mode tokens expire silently after 7 days — switch to production mode before any code is written. Desktop scheduled tasks cannot access MCP servers (confirmed open bug #36327) — use GitHub Actions from the start, never Desktop tasks. Token costs can explode if raw email threads are processed naively — two-tier model selection (Haiku for categorization, Sonnet for drafts) with prompt caching reduces this 5-10x. Prompt injection via email content is mitigated entirely by the hardened-google-workspace-mcp fork, which removes all send and share operations by design. All four of these risks are fully documented with official sources and have clear prevention strategies.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The system is a Claude Code-native application, not a traditional software project. Claude Code itself is the runtime, orchestrator, and primary interface. MCP servers are the integration layer; GitHub is both version control and deployment infrastructure; and NDJSON flat files in git replace any database. This means the "stack" is primarily a configuration and composition decision rather than a programming language or framework decision.
-
-The two non-obvious stack choices are: (1) using the hardened Google Workspace MCP fork rather than the popular original, which is a security requirement not a preference; and (2) using GitHub Actions rather than Claude Desktop's built-in scheduling, which is a reliability requirement due to confirmed bug #36327.
+The v2 stack extends v1 with no new MCP servers. Claude Code (>=2.1.80) is the runtime for both interactive and scheduled operations — v2.1.80 is required for Channels (Telegram). The hardened-google-workspace-mcp fork handles Gmail and Drive access with send/share operations stripped to prevent prompt injection exfiltration. GitHub's official remote HTTP MCP server handles repo operations without Docker. GitHub Actions with claude-code-action@v1 is the only reliable durable scheduling option — Desktop scheduled tasks are ruled out by unresolved platform bug #36327. NDJSON files in git remain the data layer; new domains (todos, invoices) each get their own NDJSON file and schema rather than extending the existing task schema. The critical negative: never use the unmodified taylorwilsdon/google_workspace_mcp (exfiltration vectors), the deprecated @modelcontextprotocol/server-github npm package (abandoned April 2025), or Claude Desktop scheduled tasks for MCP-dependent work.
 
 **Core technologies:**
-- Claude Code >=2.1.80: Runtime, orchestrator, primary interface — the entire system runs here
-- hardened-google-workspace-mcp (c0webster fork): Gmail read + draft creation, no send/share capability — required for prompt injection safety
-- github/github-mcp-server (remote HTTP endpoint): GitHub file ops, repo management, Pages deploy status — use official endpoint, npm package deprecated April 2025
-- GitHub Actions + claude-code-action@v1: Durable scheduled automation — only reliable MCP-capable scheduling option due to Desktop bug #36327
-- NDJSON flat files committed to git: All structured data storage — append-only, git-diffable, no binary dependencies
-- Plain HTML/CSS/JS on GitHub Pages: Mobile-friendly glanceable dashboard — zero build step, Claude generates directly
-- rclone + Google Drive: Optional cross-device sync — one-way push only, git is always source of truth
-- jq >=1.7: NDJSON-to-JSON compilation for dashboard — `jq -s '.' data/feed.jsonl > docs/feed.json`
+- Claude Code >=2.1.80: AI runtime and orchestrator — required for Channels (Telegram), /loop scheduling, and cron tools
+- hardened-google-workspace-mcp (c0webster fork): Gmail read, Drive access, draft creation — no send/share; required for prompt injection safety
+- github/github-mcp-server (remote HTTP): GitHub operations including Pages deployment — official server, no Docker required
+- GitHub Actions / claude-code-action@v1: Durable scheduled automation — the only reliable option given Desktop MCP bug #36327
+- NDJSON (.jsonl) in git: Activity feed and all domain data — append-only, git-diffable, corruption-isolated
+- Plain HTML/CSS/JS: GitHub Pages dashboard — zero build step, Claude generates directly, no framework overhead
+- rclone >=1.68: One-way git-to-Drive sync — mobile/cross-device access without build pipeline overhead
+- jq >=1.7: NDJSON-to-JSON compilation for dashboard — `jq -s '.' file.jsonl > docs/file.json`
 
 ### Expected Features
 
-The MVP hypothesis is: if inbox scanning, categorization, and starred-queue surfacing work reliably, the core cognitive load relief is proven. Draft generation and task execution are table stakes for v1 but are validation additions, not MVP blockers. Everything beyond Gmail + Dashboard is explicitly deferred.
+V2 adds four feature domains to a working v1 system. The v1 baseline (interactive triage, draft generation, task queue, activity feed, static dashboard) is in production and does not need rebuilding.
 
-**Must have (table stakes):**
-- Gmail OAuth (production mode) + hardened MCP — without this nothing works; zero-day decision
-- NDJSON activity feed schema — must exist before any data is written; all downstream depends on it
-- Inbox scanning with 4-bucket categorization (urgent, needs-response, informational, low-priority) — core value prop
-- Starred email priority queue — maps to Glen's existing workflow, unique differentiator, low implementation cost
-- Draft reply generation — Claude creates Gmail drafts; Glen reviews and sends manually from Gmail
-- Static GitHub Pages dashboard — unread count, starred queue, recent activity; responsive mobile-first
-- Manual task kickoff via Claude Code commands (`/triage-inbox`, `/draft-reply`, `/scan-starred`)
-- Human-in-the-loop approval before sending — enforced architecturally by hardened MCP fork
+**Must have (table stakes for v2):**
+- GitHub Actions scheduled email triage — an assistant that only runs when manually invoked is not autonomous; this is the headline v2 capability
+- .github/mcp-config.json for runner MCP configuration — separate from local config, uses GitHub Secrets for OAuth credentials
+- Daily to-do management (/todo add, /todo list, /todo done) — tracks Glen's personal action items Claude cannot execute
+- /daily-briefing command — morning compilation of todos, pending tasks, and triage summary
+- Invoice tracking extracted from triage pipeline — auto-creates invoice records when email-scanner detects action_type:"invoice"
+- invoice-scanner subagent — lazily extracts structured invoice data (amount, due date, vendor) when task is executed
+- Dashboard tabs for todos and invoices — extends existing GitHub Pages view with two new domains
 
-**Should have (v1.x — after core validation):**
-- GitHub Actions scheduled triage (daily weekday, unattended) — automates the manual flow
-- Actionable item detection (contracts, invoices, meeting requests) — goes beyond triage into extraction
-- Task suggestion and Google Drive document retrieval — compound value, higher complexity
-- Context accumulation (client interaction summaries stored in git) — compounds over weeks
-- rclone Drive sync — enhances mobile access beyond read-only dashboard
+**Should have (differentiators for v2):**
+- Telegram command channel — send commands from phone, get concise responses, approve/deny permission prompts via phone (v2.1.81+)
+- Starred-email priority surfacing in /daily-briefing — maps to Glen's existing Gmail workflow, zero additional MCP cost
+- Invoice lifecycle management (detected -> pending-payment -> paid/overdue) — /invoice list, paid, overdue commands
+- Context accumulation (client summaries in git) — system builds persistent knowledge, compounds in value over weeks
 
-**Defer (v2+):**
-- Telegram/Discord command channel — Channels feature is research preview, not GA; do not block v1
-- Calendar awareness — separate complex domain with enormous scope creep risk
-- Autonomous sending for low-risk categories — only after weeks of proven accuracy
-- Invoice tracking — explicitly out of scope in PROJECT.md
+**Defer (v3+):**
+- Autonomous email sending for low-risk categories — requires weeks of proven accuracy first; trust must be earned
+- Calendar awareness and meeting scheduling — separate complex domain, enormous scope creep risk
 - Multi-step task execution chains
+- Google Drive write operations from Claude (versus rclone one-way sync)
 
-**Explicit anti-features (never build in v1):**
-- Autonomous email sending — prompt injection risk and trust destruction if AI sends wrong email to client
-- Real-time push notifications — defeats deep-work purpose, adds significant infra complexity
-- Native mobile app — GitHub Pages dashboard + Telegram channel is sufficient for single-user
-- Multi-user features — transforms personal tool into team platform with massive scope implications
+**Anti-features (explicitly excluded from v2):**
+- Real-time push notifications — adds infrastructure, defeats cognitive-load reduction goal
+- Native mobile app — GitHub Pages + Telegram covers the mobile use case entirely
+- Multi-user or team features — transforms personal tool into a platform with auth, permissions, and data isolation work
+- Any SaaS for data storage — data ownership is a hard constraint; all data in local git repo
 
 ### Architecture Approach
 
-The architecture follows a Command-Skill-Commit Loop: every operation receives a trigger, executes a skill/command, writes NDJSON/JSON data, commits to git, and optionally pushes. Git commit is the atomic unit of state change. Heavy operations (inbox scan, document analysis) run in subagents to preserve the main conversation's context window. The dashboard is a static HTML/JS page with a single JSON data contract (`docs/feed.json`) compiled from NDJSON — no server, no API, no database.
+V2 is an additive extension of v1, not a redesign. The email-scanner and task-executor agents are modified at the margins only: email-scanner gains invoice record creation for action_type:"invoice" detections; task-executor gains dispatch to the new invoice-scanner subagent. Three new slash commands are added (todo, invoice, daily-briefing). Two GitHub Actions workflows are added. A Telegram channel plugin wraps all existing commands. The existing triage pipeline, task system, activity feed, and dashboard all continue working unchanged. The build-dashboard-data.sh script gains two new compilations (todos.json, invoices.json). The dashboard gains two new tabs.
 
-Two-tier scheduling separates interactive use (/loop, session-scoped, acceptable for ad-hoc monitoring) from durable automation (GitHub Actions, persists when laptop is off, has explicit MCP configuration). MCP configuration in GitHub Actions is separate from local configuration and must be set up explicitly using workflow secrets and a `.github/mcp-config.json` file — it does not inherit from local `settings.local.json`.
+The key architectural principle across all four v2 phases: separate data domains. Todos, invoices, and tasks each have distinct lifecycles and get separate NDJSON files. Forcing them into the task schema would create ambiguous status values, nullable fields, and confusing queries. Cross-references via ID fields (linked_task, source_email) connect related records across domains without schema pollution.
 
-**Major components:**
-1. Claude Code Runtime — orchestrates all operations; CLAUDE.md, hooks, and skills define behavior
-2. hardened-google-workspace-mcp — Gmail read + draft, Drive access; cannot send or share by design
-3. github/github-mcp-server — file ops, Pages status, repo management via remote HTTP endpoint
-4. Local git repo (data/) — source of truth; NDJSON for append logs, JSON for mutable state, `docs/` for Pages
-5. GitHub Actions (triage.yml) — durable scheduled automation with own MCP config separate from local
-6. GitHub Pages (docs/) — static dashboard served from `docs/` directory, no separate gh-pages branch
-7. Hooks + Scripts — PostToolUse hooks enforce JSON validation; build-dashboard-data.sh compiles NDJSON feed
-8. Subagents (.claude/agents/) — email-scanner and task-executor isolate heavy context operations from main conversation
+**Major v2 components:**
+1. .github/workflows/daily-triage.yml and daily-briefing.yml — durable cron-triggered automation on GitHub runners
+2. .github/mcp-config.json — runner-specific MCP config using GitHub Secrets; cannot inherit Glen's local config
+3. data/todos/active.jsonl + schemas/todo-record.json — daily to-do items with human lifecycle (pending/completed/cancelled)
+4. data/invoices/active.jsonl + schemas/invoice-record.json — invoice records with financial lifecycle (detected/pending-payment/paid/overdue)
+5. .claude/commands/todo.md, invoice.md, daily-briefing.md — three new slash commands
+6. .claude/agents/invoice-scanner.md — new subagent for lazy structured data extraction from invoice emails
+7. Telegram channel plugin — mobile command bridge via `claude --channels plugin:telegram@claude-plugins-official`
+8. Extended build-dashboard-data.sh — adds todos.json and invoices.json compilation
+9. Extended docs/index.html — adds to-do and invoice tabs; /status command gains todo count and overdue invoice count
+
+**Key patterns:**
+- Lazy invoice extraction: skeleton record created at triage time; full extraction (amount, due date, vendor) deferred to task execution. Avoids processing 50-email triage runs with deep parsing on every email.
+- Triage pipeline extension points: the /triage-inbox command's post-triage auto-queue section gains a parallel path for invoice records. The email-scanner agent itself does not change.
+- Single-writer NDJSON: only one process writes to any given file at a time. Append-only format means no read-modify-write operations, preventing git merge conflicts from concurrent automated runs.
 
 ### Critical Pitfalls
 
-1. **Gmail OAuth in testing mode** — tokens expire in 7 days silently, system stops scanning email with no alerting; switch consent screen to "In Production" on day one before any code is written
-2. **Token cost explosion from naive email processing** — full email threads (HTML, signatures, reply chains) can cost $2-4 per scan; strip HTML to plain text, use Haiku for initial categorization and Sonnet only for drafts, enable prompt caching (10% of input cost for system prompt reads)
-3. **Desktop scheduled tasks cannot access MCP servers** — confirmed bug #36327 with multiple duplicates, unresolved as of March 2026; use GitHub Actions for all unattended automation; never rely on Desktop scheduled tasks for MCP-dependent operations
-4. **Prompt injection via email content** — attacker embeds instructions in email body that could cause data exfiltration; use c0webster/hardened-google-workspace-mcp exclusively, which removes all send/share/filter-creation tools
-5. **Session-scoped /loop silently dies** — destroyed on terminal close, no persistence across restarts, 3-day auto-expiry even in active sessions; treat it as interactive convenience only, not production scheduling
-6. **Scope creep** — each new integration feels like "just a prompt change" but adds OAuth, rate limits, and failure modes; cap at 3 MCP servers for v1 and enforce PROJECT.md out-of-scope items ruthlessly
+1. **Gmail OAuth testing-mode token expiry (7 days, silent)** — Switch OAuth consent screen to production mode before any code is written. Testing tokens expire silently; the system stops scanning email with no error surfaced. For personal-use apps under 100 users, no Google verification is required.
+
+2. **Desktop scheduled tasks cannot access MCP servers (bug #36327)** — Use GitHub Actions with claude-code-action@v1 for all durable scheduled automation. Desktop tasks fire on schedule but MCP tools fail silently. Confirmed by multiple independent reports, unresolved as of March 2026.
+
+3. **Token cost explosion from naive email processing** — Strip HTML, remove signatures and reply chains, send only the latest message per thread. Use Haiku for initial categorization, escalate to Sonnet for draft generation only. Enable prompt caching (system prompt is identical across all triage requests; cache reads at 10% of input cost). Track cost per scan in the activity feed.
+
+4. **Prompt injection via email content** — Use hardened-google-workspace-mcp (c0webster fork) which removes email sending, file sharing, and filter creation entirely. Claude can create drafts but cannot send them. Log summaries to the activity feed, never raw email content.
+
+5. **Session-scoped /loop silently dies** — CLI scheduled tasks are destroyed on terminal close, have no catch-up for missed fires, and expire after 3 days even in active sessions. Treat /loop as interactive convenience only, never as production scheduling. Use GitHub Actions for everything that must run unattended.
+
+6. **Scope creep disguised as "just a prompt change"** — Cap MCP servers at 3 for v2 (hardened-workspace, github, filesystem built-in). Each new integration adds an OAuth token, an API rate limit, and a failure mode. Each automation must have a clear trigger, defined success state, error handling, and feed logging.
 
 ## Implications for Roadmap
 
-Research is unusually prescriptive about build order. ARCHITECTURE.md explicitly defines a 6-phase dependency chain, FEATURES.md identifies the exact MVP feature set, and PITFALLS.md identifies which phases have critical gotchas. The suggested phases below follow hard dependencies, not arbitrary grouping.
+The architecture research documents a dependency-driven build order explicitly. The reasoning is sound and the suggested phases below follow it directly. All four phases can be planned and built sequentially without re-research; only Phase 4 (Telegram) warrants a verification pass before implementation given its research-preview status.
 
-### Phase 1: Foundation (Infrastructure and Credentials)
+### Phase 1: Scheduled Automation (GitHub Actions)
 
-**Rationale:** Everything in the system depends on Google OAuth and the data directory structure. This is the zero-value phase that unblocks all subsequent work. Must be done first, cannot be parallelized.
-**Delivers:** Working MCP connections verified interactively, NDJSON schema established, repo structure initialized, CLAUDE.md instructions written, basic validation scripts in place
-**Addresses:** Google OAuth (P0), NDJSON schema definition (P0) from FEATURES.md
-**Avoids:** Token expiry pitfall (#1 — production mode here), prompt injection pitfall (#4 — install hardened fork here), Desktop scheduling pitfall (#3 — architect for GitHub Actions from the start)
-**Research flag:** Standard patterns for MCP setup. Verify the exact "In Production" consent screen steps and the "unverified app" warning flow during implementation.
+**Rationale:** Highest-impact addition to the system. Converts manual triage into unattended daily automation. Also has the most environmental complexity — GitHub Secrets, runner MCP config, OAuth credential packaging for CI — and benefits from being tested and stable before other phases depend on it. The /triage-inbox command already exists; this phase wraps it in a durable cron trigger.
+**Delivers:** Daily weekday triage at 9am UTC (approx 7:30pm ACST) running without Glen's laptop. Results committed to git, dashboard deployed automatically. Optionally chains into /daily-briefing after triage completes.
+**Addresses features:** Scheduled/recurring execution (table stakes), automatic dashboard updates after unattended runs
+**Avoids:** Pitfall 3 (Desktop MCP bug) by using GitHub Actions; Pitfall 5 (session-scoped /loop) by using persistent workflow triggers
+**Needs research-phase:** No. GitHub Actions + claude-code-action@v1 patterns are fully documented with official examples. The hardest part is credential packaging — a configuration task, not a research question. One gap: verify hardened-workspace MCP accepts OAuth credentials from environment variables (vs. local credential files) before starting.
 
-### Phase 2: Interactive Email Triage
+### Phase 2: Daily Task Management (To-Do System)
 
-**Rationale:** Depends on Phase 1 (MCP servers + data structure). Core value proposition. Must work interactively before scheduling. Manual invocation allows debugging without automation complexity layered on top.
-**Delivers:** Working `/triage-inbox` and `/scan-starred` commands; email-scanner subagent; 4-bucket categorization; starred queue processing; activity feed writing to data/feed.jsonl
-**Uses:** hardened-google-workspace-mcp, email-scanner subagent (.claude/agents/email-scanner.md), NDJSON append pattern
-**Implements:** Command-Skill-Commit Loop pattern, subagent isolation for heavy operations
-**Avoids:** Token cost explosion (#2 — implement two-tier model and HTML stripping here), Gmail rate limits (#7 — incremental sync and exponential backoff from start), triage quality degradation (#14 — suggest-only warmup period first)
-**Research flag:** Skip deeper research. Patterns are well-documented in research files. Implementation is primarily command authoring and subagent configuration.
+**Rationale:** Establishes the canonical pattern for adding new data domains to the system: schema definition, NDJSON seed file, slash command, feed-entry type extension, build-dashboard-data.sh addition, dashboard tab. Invoice tracking in Phase 3 follows this pattern identically. Building to-dos first de-risks invoice implementation and has zero external dependencies of its own.
+**Delivers:** /todo add/list/done/cancel commands. /daily-briefing command compiling todos, pending tasks, and latest triage summary. Dashboard to-do tab. Feed schema extended with "todo" type and "telegram" trigger.
+**Uses:** NDJSON pattern, jq build script, existing feed infrastructure, existing /status command (extended)
+**Implements:** data/todos/active.jsonl, schemas/todo-record.json, .claude/commands/todo.md, .claude/commands/daily-briefing.md
+**Avoids:** Anti-pattern of overloading the task schema — todos have human lifecycle (pending/done), tasks have Claude-execution lifecycle (pending/in-progress/completed); they are conceptually distinct and get separate files
+**Needs research-phase:** No. Standard file operations and Claude Code command authoring. No novel integration.
 
-### Phase 3: Draft Generation and Task Execution
+### Phase 3: Invoice Tracking
 
-**Rationale:** Depends on Phase 2 (emails must exist to act on). Extends triage into action. Unlocks the "draft reply to Sarah" workflow central to the value proposition.
-**Delivers:** Working `/draft-reply` command; task-executor subagent; draft storage in data/emails/drafts/ as markdown files; Gmail draft creation via hardened MCP; task records in data/tasks/pending.json
-**Uses:** hardened-google-workspace-mcp (Drive access for document retrieval), task-executor subagent (.claude/agents/task-executor.md)
-**Implements:** Manual Task Execution Flow from ARCHITECTURE.md
-**Avoids:** Autonomous sending (architecturally prevented by hardened MCP fork)
-**Research flag:** Validate hardened-google-workspace-mcp draft creation workflow hands-on. Research file notes Claude can create Gmail drafts but implementation details need hands-on verification.
+**Rationale:** Follows the same schema-plus-command-plus-dashboard-tab pattern established in Phase 2, so the work is more mechanical than novel. Hooks into the existing triage pipeline via the already-detected action_type:"invoice" field — minimal changes to existing code. Introduces the first new subagent since v1. Must come after Phase 2 because it reuses the established domain-extension pattern.
+**Delivers:** Invoice records auto-created from triage runs. /invoice list/paid/overdue/scan commands. invoice-scanner subagent for structured data extraction. Dashboard invoice tab. Overdue invoice count surfaced in /status.
+**Uses:** Existing triage pipeline (email-scanner unchanged), task-executor agent (extended for invoice dispatch), hardened-workspace MCP for email content access
+**Implements:** data/invoices/active.jsonl, schemas/invoice-record.json, .claude/agents/invoice-scanner.md, .claude/commands/invoice.md
+**Avoids:** Synchronous extraction during triage (anti-pattern: adds parsing overhead to all 50-email scans for rare invoice case). Uses lazy evaluation: skeleton record at triage, full extraction when task is explicitly executed.
+**Needs research-phase:** No. Architecture research details the exact integration points, including which lines of /triage-inbox to extend and what the invoice-scanner subagent receives as input.
 
-### Phase 4: Static Dashboard
+### Phase 4: Telegram Mobile Commands
 
-**Rationale:** Can be built in parallel with Phases 2-3 using mock data. Depends only on the feed.json data contract established in Phase 1 (NDJSON schema). Provides mobile access and glanceable status.
-**Delivers:** docs/index.html + styles.css + app.js; build-dashboard-data.sh script (jq NDJSON compilation); GitHub Pages configured from docs/ directory; responsive mobile-first layout showing unread count, starred queue, recent activity
-**Uses:** Plain HTML/CSS/JS, jq, peaceiris/actions-gh-pages@v4
-**Implements:** Static Dashboard via JSON Data Contract pattern from ARCHITECTURE.md
-**Avoids:** Dashboard data exposure (#9 — aggregate/anonymize data, add robots.txt, use private repo + GitHub Pro for private Pages)
-**Research flag:** Skip deeper research. Static HTML dashboard with jq data compilation is straightforward. GitHub Pages configuration from docs/ directory is well-documented.
-
-### Phase 5: Scheduled Automation
-
-**Rationale:** Depends on Phases 2-3 (operations must exist and be validated before scheduling). Debug interactively first, then automate. GitHub Actions is the only reliable durable scheduling option — this is a hard constraint, not a preference.
-**Delivers:** .github/workflows/triage.yml with weekday 9am cron; .github/mcp-config.json for runner MCP configuration; GitHub Actions secrets setup; auto-commit + auto-push pipeline; dashboard auto-deploys after each triage run
-**Uses:** anthropics/claude-code-action@v1, GitHub Actions cron schedule, workflow secrets for MCP credentials
-**Implements:** Two-Tier Scheduling Architecture (GitHub Actions tier)
-**Avoids:** Desktop tasks pitfall (#3 — GitHub Actions only), /loop silently dies pitfall (#5 — /loop is interactive only)
-**Research flag:** Needs research phase during planning. GitHub Actions runner-side MCP configuration (separate from local settings, using workflow secrets and explicit mcp-config.json) has specific setup requirements. ARCHITECTURE.md has a workflow template but the exact secret names, mcp-config.json format, and runner environment validation need confirmation before implementation.
-
-### Phase 6: Mobile Commands and Drive Sync (Optional v1.x)
-
-**Rationale:** Quality-of-life additions after core system is validated. Channels is research preview (may not be stable at v1 time). Drive sync is convenient but GitHub Pages already provides mobile read access; git already provides version control.
-**Delivers:** Telegram/Discord channel setup (if Channels is GA); rclone one-way push from repo to Google Drive for cross-device file access
-**Uses:** Claude Code Channels (v2.1.80+), rclone >=1.68
-**Avoids:** Drive sync complexity (#13 — one-way push only, never bidirectional sync, git is always source of truth)
-**Research flag:** Needs research phase. Channels is research preview as of March 2026 — stability, allowlist security model, and Telegram setup steps need verification at time of implementation. Do not plan or build this phase until Channels is confirmed GA.
+**Rationale:** Purely a consumption layer. Telegram invokes commands that all exist after Phases 1-3. Building it last means all commands are available for Telegram to call. This is also a research preview feature — placing it last means its instability risk does not affect the earlier stable phases. If Channels is not yet GA at implementation time, this phase should be deferred.
+**Delivers:** Two-way Telegram bot for sending commands from phone and receiving concise mobile-formatted responses. Permission relay (approve/deny from phone, requires v2.1.81+). CLAUDE.md channel instructions section. Shell alias for channel-enabled Claude Code startup (`agend` alias in .zshrc).
+**Uses:** Claude Code Channels feature (v2.1.80+), Telegram channel plugin, all existing commands (/triage-inbox, /todo, /invoice, /task, /status, /daily-briefing)
+**Implements:** Telegram bot config, channel plugin pairing, CLAUDE.md additions for Telegram-specific response formatting
+**Avoids:** Anti-pattern of routing all operations through Telegram (Telegram for quick commands, CLI for heavy work, dashboard for overview); anti-pattern of treating Telegram as a replacement for GitHub Actions (Channels requires a running local session; Actions is unattended)
+**Needs research-phase:** Targeted verification pass recommended (15-30 minutes against current docs), not a full research phase. Channels is research preview as of March 2026. Plugin pairing flow, allowlist security model, and permission relay requirements should be confirmed current before starting implementation.
 
 ### Phase Ordering Rationale
 
-- Phases 1 through 3 are strictly sequential due to hard dependencies (OAuth before triage, triage before drafts)
-- Phase 4 (Dashboard) can run in parallel with Phases 2-3 using mock data, but requires Phase 1 schema definition
-- Phase 5 (Scheduling) must come after Phases 2-3 are validated interactively — automating unvalidated flows makes debugging dramatically harder
-- Phase 6 is explicitly optional and should not be planned until the Channels feature is confirmed GA
-- The "validate interactively before automating" pattern is critical: bugs discovered in the GitHub Actions scheduled context are much harder to debug than bugs discovered in interactive sessions
-- NDJSON schema defined in Phase 1 is the data contract that all later phases depend on — changing it after Phase 2 ships is a breaking change
+- **GitHub Actions first** because autonomous daily triage is the headline v2 capability and its environmental complexity (Secrets, runner MCP config) benefits from early verification. No other phase depends on it being built first, but it delivers the most value earliest.
+- **To-dos before invoices** because the pattern is identical and establishing it first creates a template. Also: to-dos have zero external dependencies, making them the lowest-risk new feature.
+- **Invoice tracking before Telegram** because Telegram should be able to invoke /invoice, which does not exist until Phase 3.
+- **Telegram last** because it depends on all other commands existing and it is a research preview. Its instability should not block or break phases 1-3.
+- **No new MCP servers in v2** — all four phases use only the two existing MCP servers (hardened-workspace, github). This deliberately caps integration surface area per Pitfall 6 (scope creep).
+- **Interactive validation before scheduling** — Phase 1 wraps an already-validated interactive command. Phases 2 and 3 should be tested interactively before Telegram (Phase 4) invokes them remotely.
 
 ### Research Flags
 
-Phases needing deeper research during planning:
-- **Phase 5 (Scheduling):** GitHub Actions runner-side MCP configuration requires workflow secrets and an `.github/mcp-config.json` file that local setup does not generate. The pattern is documented in ARCHITECTURE.md but exact secret names, MCP config format for the runner environment, and how credentials flow from GitHub secrets to MCP server startup need validation before implementation begins.
-- **Phase 6 (Channels):** Research preview feature. Stability, allowlist security model, and Telegram/Discord setup steps need fresh verification at time of implementation. Do not plan until confirmed GA.
+Phases with well-documented patterns — skip `/gsd:research-phase`:
+- **Phase 1 (GitHub Actions):** claude-code-action@v1 has official examples and the MCP config passthrough is documented. This is a configuration task. One pre-work gap: verify hardened-workspace MCP accepts env-var OAuth credentials (not just local files).
+- **Phase 2 (To-Do System):** Pure Claude Code command authoring and NDJSON file operations. No novel integration.
+- **Phase 3 (Invoice Tracking):** Follows the Phase 2 pattern. Architecture research details exact integration points and schemas.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Foundation):** MCP server installation documented in official Claude Code docs and MCP server repos. Google OAuth production mode is standard Google Cloud setup.
-- **Phase 2 (Interactive Triage):** Subagent pattern, NDJSON append, command authoring — all thoroughly documented in official Claude Code docs.
-- **Phase 3 (Drafts/Tasks):** Extension of Phase 2 patterns. Hands-on validation of hardened MCP draft creation is implementation-time work, not planning-time research.
-- **Phase 4 (Dashboard):** Static HTML/JS with jq compilation — no novel patterns.
+Phases needing a targeted verification pass before implementation:
+- **Phase 4 (Telegram):** Channels is a research preview. A 15-30 minute doc check before starting is recommended to verify plugin pairing steps, allowlist security model, and permission relay requirements are current. Not a full research phase — just confirm the API surface has not changed since March 2026 research.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Every technology choice sourced from official docs or verified bug reports. No inferences or community speculation. |
-| Features | HIGH | MVP feature set derived from dependency analysis; P0/P1/P2 prioritization is well-justified and grounded in technical constraints. |
-| Architecture | HIGH | Official Claude Code docs, official MCP repos, confirmed platform bug #36327. Data flow diagrams in ARCHITECTURE.md are specific and actionable. |
-| Pitfalls | HIGH | All critical pitfalls verified against official documentation or confirmed GitHub issues with multiple duplicates. |
+| Stack | HIGH | All technology choices verified against official docs or confirmed bug reports. No inferences or community speculation for critical decisions. |
+| Features | HIGH | V2 feature set derived from existing system capabilities and explicit PROJECT.md requirements. Differentiators and anti-features clearly justified. |
+| Architecture | HIGH | Existing v1 system is in production — baseline is not speculative. V2 integration points verified against official docs for each component. Schemas fully defined in research. |
+| Pitfalls | HIGH | All critical pitfalls verified against official sources (Google OAuth docs, Claude pricing page, GitHub issue tracker with multiple duplicates). One moderate pitfall (MCP ecosystem fragility) rated MEDIUM because specific future breakage is inherently unpredictable. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **GitHub Actions MCP runner configuration:** ARCHITECTURE.md has a workflow template but the exact format for `.github/mcp-config.json`, which workflow secrets are required, and how MCP server startup works in the runner environment should be validated in Phase 5 planning before implementation begins.
-- **Google OAuth production mode flow:** Research states no Google verification is required for fewer than 100 users, but the exact "unverified app" warning screen and any additional Google policy requirements (as of 2026) should be confirmed hands-on during Phase 1.
-- **Channels feature GA status:** Telegram/Discord Channels is research preview as of March 2026. Phase 6 planning should not start until GA status is confirmed.
-- **Triage accuracy baseline:** No guidance exists from research on expected categorization accuracy. Phase 2 should run in "suggest only" mode for the first 2-4 weeks with lightweight feedback tracking before trusting Claude's triage decisions for unattended automation in Phase 5.
-- **Cost modeling with real inbox volume:** Token cost projections in PITFALLS.md assume 50 emails/day. Actual Glen inbox volume should be measured in Phase 2 and used to tune two-tier model selection and batch sizes before Phase 5 automation.
+- **Google OAuth production-mode verification:** Consent screen must be in production status before Phase 1 testing. One-time manual step in Google Cloud Console. Confirm the "unverified app" warning flow and any policy updates since March 2026.
+- **Hardened-workspace MCP env-var credentials:** The runner cannot use Glen's local credential files. Verify the hardened fork accepts GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN as environment variables before Phase 1 starts.
+- **Channels GA status at Phase 4 time:** Channels is research preview as of March 2026. Confirm GA before planning Phase 4. If still preview, defer.
+- **Actual inbox volume for cost modeling:** Token cost projections in PITFALLS.md assume 50 emails/day. Measure Glen's actual inbox volume in the existing v1 system before tuning two-tier model selection and batch sizes for Phase 1 automation.
+- **Dashboard privacy decision:** GitHub Pages on a free repo is public. If the new todos.json or invoices.json dashboards display any sensitive data (client names, amounts), either anonymize the data or use GitHub Pro ($4/mo) for private Pages. This decision must be made before Phase 3 commits invoice data to docs/.
 
 ## Sources
 
 ### Primary (HIGH confidence)
 - [Claude Code Scheduled Tasks (official docs)](https://code.claude.com/docs/en/scheduled-tasks) — /loop session scope, 3-day expiry, cron tools
+- [Claude Code GitHub Actions (official docs)](https://code.claude.com/docs/en/github-actions) — claude-code-action@v1, MCP config passthrough, scheduled workflow examples
+- [Claude Code Channels (official docs)](https://code.claude.com/docs/en/channels) — Telegram plugin setup, pairing, allowlist, research preview status, v2.1.80 requirement
+- [Claude Code Channels Reference (official docs)](https://code.claude.com/docs/en/channels-reference) — channel protocol, notification format, reply tools, permission relay (v2.1.81+)
 - [Claude Code MCP Configuration (official docs)](https://code.claude.com/docs/en/mcp) — .mcp.json format, scope levels, transport types
-- [Claude Code GitHub Actions (official docs)](https://code.claude.com/docs/en/github-actions) — claude-code-action@v1, scheduled workflows, MCP config passthrough
-- [Claude Code Channels (official docs)](https://code.claude.com/docs/en/channels) — Telegram/Discord bridge, research preview status, v2.1.80 requirement
+- [MCP Scheduled Task Bug #36327 (GitHub)](https://github.com/anthropics/claude-code/issues/36327) — MCP tools unavailable in Desktop scheduled tasks; open as of March 2026; duplicates #35899, #35002, #33773
 - [hardened-google-workspace-mcp (GitHub)](https://github.com/c0webster/hardened-google-workspace-mcp) — security removals, installation, OAuth setup
 - [github/github-mcp-server (GitHub)](https://github.com/github/github-mcp-server) — remote HTTP endpoint, authentication, toolsets
-- [MCP Scheduled Task Bug #36327 (GitHub)](https://github.com/anthropics/claude-code/issues/36327) — confirmed MCP tools unavailable in Desktop scheduled tasks; multiple duplicates #35899, #35002, #33773
-- [Gmail API Quota Docs](https://developers.google.com/workspace/gmail/api/reference/quota) — quota units per method, rate limit thresholds
-- [Google OAuth 2.0 Docs](https://developers.google.com/identity/protocols/oauth2) — testing vs production token expiry policy
-- [Google Cloud Consent Screen](https://support.google.com/cloud/answer/15549945) — production mode requirements, verification thresholds
-- [Claude API Pricing](https://platform.claude.com/docs/en/about-claude/pricing) — per-model token costs; premium long-context pricing threshold
+- [anthropics/claude-code-action (GitHub)](https://github.com/anthropics/claude-code-action) — action configuration, MCP config support, scheduled workflow examples
+- [Telegram plugin source (GitHub)](https://github.com/anthropics/claude-plugins-official/tree/main/external_plugins/telegram) — Telegram channel implementation, pairing flow
+- [Google OAuth 2.0 Docs](https://developers.google.com/identity/protocols/oauth2) — token expiry policies, testing vs production mode behavior
+- [Google Cloud Consent Screen](https://support.google.com/cloud/answer/15549945) — production mode requirements, verification thresholds for personal apps
+- [Gmail API Usage Limits](https://developers.google.com/workspace/gmail/api/reference/quota) — quota units per method, rate limit thresholds
+- [Claude API Pricing](https://platform.claude.com/docs/en/about-claude/pricing) — per-model token costs, premium long-context pricing threshold
 - [Claude Prompt Caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) — cache read pricing (10% of input), eligible content types
-- [NDJSON specification](https://ndjson.com/definition/) — format advantages for append-only logging
-- [peaceiris/actions-gh-pages@v4 (GitHub)](https://github.com/peaceiris/actions-gh-pages) — GitHub Pages deployment from docs/ directory
+- [peaceiris/actions-gh-pages@v4 (GitHub)](https://github.com/peaceiris/actions-gh-pages) — GitHub Pages deployment configuration
+- [NDJSON specification](https://ndjson.com/definition/) — format definition, append-only advantages, corruption isolation
 - [rclone Google Drive docs](https://rclone.org/drive/) — one-way sync configuration, OAuth setup
 
 ### Secondary (MEDIUM confidence)
-- Community patterns for AI agent scope creep mitigation — well-documented failure mode, general consensus across multiple sources
-- MCP ecosystem fragility risk — general inference from protocol maturity level and lack of SLA on community servers
+- Community reports corroborating Desktop MCP bug duplicates (#35899, #35002, #33773) — corroborates official issue but individual reporter accuracy varies
+- MCP ecosystem fragility risk assessment — general inference from protocol maturity and lack of SLA on community servers; specific future breakage is unpredictable
 
 ---
 *Research completed: 2026-03-23*
