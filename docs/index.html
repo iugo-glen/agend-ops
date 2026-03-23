@@ -475,6 +475,118 @@
       margin-bottom: var(--space-sm);
     }
 
+    /* === Todo Card === */
+    .todo-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px var(--space-md);
+      transition: background 150ms ease;
+    }
+
+    .todo-line1 {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-xs);
+    }
+
+    .todo-checkbox {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-radius: 3px;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+
+    .todo-checkbox--done {
+      background: var(--status-completed);
+      border-color: var(--status-completed);
+    }
+
+    .todo-text {
+      font-size: var(--text-body);
+      font-weight: 400;
+      line-height: 1.5;
+    }
+
+    .todo-text--done {
+      text-decoration: line-through;
+      color: var(--text-secondary);
+    }
+
+    .todo-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: 1.4;
+      margin-top: 2px;
+    }
+
+    .priority-pill {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .priority-pill--high {
+      background: var(--priority-urgent);
+      color: #FFFFFF;
+    }
+
+    .priority-pill--normal {
+      background: var(--surface-secondary);
+      color: var(--text-secondary);
+    }
+
+    .priority-pill--low {
+      background: var(--surface-secondary);
+      color: var(--text-secondary);
+    }
+
+    .due-badge {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+
+    .due-badge--overdue {
+      color: var(--destructive);
+      font-weight: 600;
+    }
+
+    .due-badge--today {
+      color: var(--priority-needs-response);
+      font-weight: 600;
+    }
+
+    .category-tag {
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--surface-secondary);
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    /* === Section Divider in Today Tab === */
+    .section-label {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: var(--space-sm) 0 var(--space-xs) 0;
+    }
+
+    .section-label:first-child {
+      padding-top: 0;
+    }
+
     /* === Desktop Layout === */
     @media (min-width: 768px) {
       .header {
@@ -493,7 +605,7 @@
 
       .main {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         gap: var(--space-lg);
         max-width: 1280px;
         margin: 0 auto;
@@ -518,6 +630,7 @@
 
       .email-card:hover,
       .task-card:hover,
+      .todo-card:hover,
       .activity-card:hover {
         background: color-mix(in srgb, var(--border) 50%, var(--surface));
       }
@@ -535,6 +648,7 @@
     <span class="summary-pill"><strong id="stat-emails">--</strong> emails</span>
     <span class="summary-pill"><strong id="stat-starred">--</strong> starred</span>
     <span class="summary-pill"><strong id="stat-pending">--</strong> pending</span>
+    <span class="summary-pill"><strong id="stat-todos">--</strong> to-dos</span>
     <span class="summary-pill"><strong id="stat-drafts">--</strong> drafts</span>
   </div>
 
@@ -552,14 +666,23 @@
   </section>
 
   <nav class="tab-bar" role="tablist" aria-label="Dashboard columns">
-    <button class="tab-btn" role="tab" aria-selected="true" aria-controls="col-starred" id="tab-starred" tabindex="0">Starred</button>
+    <button class="tab-btn" role="tab" aria-selected="true" aria-controls="col-today" id="tab-today" tabindex="0">Today</button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-controls="col-starred" id="tab-starred" tabindex="-1">Starred</button>
     <button class="tab-btn" role="tab" aria-selected="false" aria-controls="col-urgent" id="tab-urgent" tabindex="-1">Urgent</button>
     <button class="tab-btn" role="tab" aria-selected="false" aria-controls="col-tasks" id="tab-tasks" tabindex="-1">Tasks</button>
     <button class="tab-btn" role="tab" aria-selected="false" aria-controls="col-activity" id="tab-activity" tabindex="-1">Activity</button>
   </nav>
 
   <main class="main">
-    <section class="column" id="col-starred" role="tabpanel" aria-labelledby="tab-starred">
+    <section class="column" id="col-today" role="tabpanel" aria-labelledby="tab-today">
+      <div class="column-header">
+        <span class="column-title">Today</span>
+        <span class="column-count" id="count-today"></span>
+      </div>
+      <div class="column-cards" id="cards-today"></div>
+    </section>
+
+    <section class="column" id="col-starred" role="tabpanel" aria-labelledby="tab-starred" hidden>
       <div class="column-header">
         <span class="column-title">Starred</span>
         <span class="column-count" id="count-starred"></span>
@@ -652,6 +775,12 @@
       'system': '\u2699',
       'command': '\u2699',
       'briefing': '\uD83D\uDCCB'
+    };
+
+    var todoPriorityLabels = {
+      'high': 'High',
+      'normal': 'Normal',
+      'low': 'Low'
     };
 
     /* === Card Builders (textContent only -- no innerHTML) === */
@@ -802,8 +931,81 @@
       return card;
     }
 
+    function createTodoCard(record) {
+      var card = document.createElement('article');
+      card.className = 'todo-card';
+
+      /* Line 1: checkbox + text with priority pill */
+      var line1 = document.createElement('div');
+      line1.className = 'todo-line1';
+
+      var checkbox = document.createElement('span');
+      checkbox.className = 'todo-checkbox';
+      if (record.status === 'completed') {
+        checkbox.className += ' todo-checkbox--done';
+      }
+      checkbox.setAttribute('aria-hidden', 'true');
+      line1.appendChild(checkbox);
+
+      var textWrap = document.createElement('span');
+      var textEl = document.createElement('span');
+      textEl.className = 'todo-text';
+      if (record.status === 'completed') {
+        textEl.className += ' todo-text--done';
+      }
+      textEl.textContent = record.text || '';
+      textWrap.appendChild(textEl);
+
+      if (record.priority && todoPriorityLabels[record.priority]) {
+        var pill = document.createElement('span');
+        pill.className = 'priority-pill priority-pill--' + record.priority;
+        pill.textContent = todoPriorityLabels[record.priority];
+        textWrap.insertBefore(pill, textEl);
+        textWrap.insertBefore(document.createTextNode(' '), textEl);
+      }
+      line1.appendChild(textWrap);
+      card.appendChild(line1);
+
+      /* Line 2: due date badge + category tag */
+      var meta = document.createElement('div');
+      meta.className = 'todo-meta';
+
+      if (record.due_date) {
+        var dueBadge = document.createElement('span');
+        dueBadge.className = 'due-badge';
+        var today = new Date();
+        var todayStr = today.getFullYear() + '-' +
+          String(today.getMonth() + 1).padStart(2, '0') + '-' +
+          String(today.getDate()).padStart(2, '0');
+        if (record.status === 'active' && record.due_date < todayStr) {
+          dueBadge.className += ' due-badge--overdue';
+          dueBadge.textContent = 'Overdue: ' + record.due_date;
+        } else if (record.due_date === todayStr) {
+          dueBadge.className += ' due-badge--today';
+          dueBadge.textContent = 'Due today';
+        } else {
+          dueBadge.textContent = 'Due ' + record.due_date;
+        }
+        meta.appendChild(dueBadge);
+      }
+
+      if (record.category) {
+        var catTag = document.createElement('span');
+        catTag.className = 'category-tag';
+        catTag.textContent = '#' + record.category;
+        meta.appendChild(catTag);
+      }
+
+      if (meta.childNodes.length > 0) {
+        card.appendChild(meta);
+      }
+
+      return card;
+    }
+
     /* === Empty / Error States === */
     var emptyMessages = {
+      'today': 'Nothing on your plate today. Nice!',
       'starred': 'No starred emails. Inbox zero!',
       'urgent': 'No urgent emails right now.',
       'tasks': 'No pending tasks.',
@@ -811,6 +1013,7 @@
     };
 
     var emptyIcons = {
+      'today': '\u2600',
       'starred': '\u2605',
       'urgent': '\u26A0',
       'tasks': '\u2713',
@@ -866,6 +1069,7 @@
     /* === Tab Navigation (WAI-ARIA Tabs Pattern) === */
     var tabs = document.querySelectorAll('.tab-btn');
     var panels = {
+      'tab-today': 'col-today',
       'tab-starred': 'col-starred',
       'tab-urgent': 'col-urgent',
       'tab-tasks': 'col-tasks',
@@ -925,25 +1129,28 @@
 
     /* === Data Fetch + Render === */
     (async function() {
-      var feedResult, tasksResult, triageResult, briefingResult;
+      var feedResult, tasksResult, triageResult, briefingResult, todosResult;
 
       try {
         var results = await Promise.allSettled([
           fetch('./feed.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
           fetch('./tasks.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
           fetch('./triage.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
-          fetch('./briefing.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+          fetch('./briefing.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); }),
+          fetch('./todos.json').then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
         ]);
 
         feedResult = results[0].status === 'fulfilled' ? results[0].value : null;
         tasksResult = results[1].status === 'fulfilled' ? results[1].value : null;
         triageResult = results[2].status === 'fulfilled' ? results[2].value : null;
         briefingResult = results[3].status === 'fulfilled' ? results[3].value : null;
+        todosResult = results[4].status === 'fulfilled' ? results[4].value : null;
       } catch (err) {
         feedResult = null;
         tasksResult = null;
         triageResult = null;
         briefingResult = null;
+        todosResult = null;
       }
 
       /* --- Summary Bar --- */
@@ -983,9 +1190,15 @@
         pendingCount = tasksResult.filter(function(r) { return r.status === 'pending'; }).length;
       }
 
+      var activeTodos = 0;
+      if (todosResult) {
+        activeTodos = todosResult.filter(function(r) { return r.status === 'active'; }).length;
+      }
+
       document.getElementById('stat-emails').textContent = emailsScanned;
       document.getElementById('stat-starred').textContent = starredCount;
       document.getElementById('stat-pending').textContent = pendingCount;
+      document.getElementById('stat-todos').textContent = activeTodos;
       document.getElementById('stat-drafts').textContent = draftsCreated;
 
       /* --- Last Updated --- */
@@ -1015,6 +1228,56 @@
         banner.hidden = false;
       } else {
         banner.hidden = true;
+      }
+
+      /* --- Today Column --- */
+      var todayContainer = document.getElementById('cards-today');
+      var todayCount = document.getElementById('count-today');
+      todayContainer.textContent = '';
+
+      var activeTodoItems = todosResult
+        ? todosResult.filter(function(r) { return r.status === 'active'; })
+            .sort(function(a, b) {
+              var priOrder = { 'high': 0, 'normal': 1, 'low': 2 };
+              var priDiff = (priOrder[a.priority] || 1) - (priOrder[b.priority] || 1);
+              if (priDiff !== 0) return priDiff;
+              var aDate = a.due_date || '9999-99-99';
+              var bDate = b.due_date || '9999-99-99';
+              return aDate < bDate ? -1 : aDate > bDate ? 1 : 0;
+            })
+        : [];
+
+      var pendingTaskItems = tasksResult
+        ? tasksResult.filter(function(r) { return r.status === 'pending' || r.status === 'in-progress'; })
+        : [];
+
+      var totalToday = activeTodoItems.length + pendingTaskItems.length;
+
+      if (totalToday === 0) {
+        todayContainer.appendChild(renderEmptyState('today'));
+        todayCount.textContent = '(0)';
+      } else {
+        todayCount.textContent = '(' + totalToday + ')';
+
+        if (activeTodoItems.length > 0) {
+          var todoLabel = document.createElement('div');
+          todoLabel.className = 'section-label';
+          todoLabel.textContent = 'YOUR TO-DOS (' + activeTodoItems.length + ')';
+          todayContainer.appendChild(todoLabel);
+          activeTodoItems.forEach(function(item) {
+            todayContainer.appendChild(createTodoCard(item));
+          });
+        }
+
+        if (pendingTaskItems.length > 0) {
+          var taskLabel = document.createElement('div');
+          taskLabel.className = 'section-label';
+          taskLabel.textContent = 'CLAUDE TASKS (' + pendingTaskItems.length + ')';
+          todayContainer.appendChild(taskLabel);
+          pendingTaskItems.forEach(function(item) {
+            todayContainer.appendChild(createTaskCard(item));
+          });
+        }
       }
 
       /* --- Starred Column --- */
