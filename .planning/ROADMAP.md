@@ -153,8 +153,14 @@ Plans:
   2. Dashboard reads live NDJSON data directly from the git repo on the home server
   3. Glen can take actions from the dashboard: mark invoice paid, complete todo, approve/view draft, trigger triage
   4. Clickable Gmail links open emails and drafts directly from dashboard cards
-**Plans**: TBD
+**Plans:** 4 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 08-01-PLAN.md -- Next.js scaffold with auth, data layer, API routes, action queue endpoint, and Dockerfile
+- [ ] 08-02-PLAN.md -- Dashboard UI: Kanban board, card components, action buttons, Gmail links, mobile tabs
+- [ ] 08-03-PLAN.md -- Action queue schema, /process-queue command, and triage/status integration
+- [ ] 08-04-PLAN.md -- Coolify deployment configuration and production verification
 
 ### Phase 9: Telegram Mobile Commands (deferred)
 **Goal**: Glen can send commands and approve actions from his phone via Telegram, without opening a laptop or the dashboard
@@ -180,5 +186,5 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 | 5. Scheduled Automation | v2.0 | 3/3 | Complete | 2026-03-23 |
 | 6. Daily Task Management | v2.0 | 2/2 | Complete | 2026-03-23 |
 | 7. Invoice Tracking | v2.0 | 3/3 | Complete | 2026-03-23 |
-| 8. Interactive Dashboard | v2.0 | 0/? | Not started | - |
+| 8. Interactive Dashboard | v2.0 | 0/4 | Planning complete | - |
 | 9. Telegram (deferred) | v3.0 | 0/? | Not started | - |
