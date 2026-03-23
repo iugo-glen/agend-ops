@@ -1,23 +1,19 @@
 # Roadmap: Agend Ops
 
-## Overview
+## Milestones
 
-Agend Ops delivers cognitive load relief in four phases: first lay the infrastructure foundation (OAuth, MCP, data schema), then build interactive email triage (the core value proposition), extend into task execution and draft generation (acting on what triage surfaces), and finally ship a mobile-friendly dashboard for glanceable visibility. Each phase delivers a complete, verifiable capability. The dashboard can run in parallel with earlier phases using mock data, but is sequenced last because email triage and task execution are the primary value drivers.
+- [x] **v1.0 MVP** - Phases 1-4 (shipped 2026-03-23)
+- [ ] **v2.0 Autonomous Operations** - Phases 5-8 (in progress)
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+<details>
+<summary>v1.0 MVP (Phases 1-4) - SHIPPED 2026-03-23</summary>
 
-Decimal phases appear between their surrounding integers in numeric order.
-
-- [ ] **Phase 1: Foundation** - Google OAuth, hardened MCP server, data schema, repo structure, and project configuration
-- [x] **Phase 2: Email Triage** - Claude scans inbox, categorizes emails, surfaces starred queue, generates drafts, detects actionable items (completed 2026-03-23)
-- [x] **Phase 3: Task Execution** - Manual and proactive task kickoff, document retrieval from Drive, analysis, and response generation (completed 2026-03-23)
-- [ ] **Phase 4: Dashboard** - GitHub Pages mobile-first dashboard showing email status, starred queue, activity feed, and pending tasks
-
-## Phase Details
+- [x] **Phase 1: Foundation** - Google OAuth, hardened MCP server, data schema, repo structure, and project configuration
+- [x] **Phase 2: Email Triage** - Claude scans inbox, categorizes emails, surfaces starred queue, generates drafts, detects actionable items
+- [x] **Phase 3: Task Execution** - Manual and proactive task kickoff, document retrieval from Drive, analysis, and response generation
+- [x] **Phase 4: Dashboard** - GitHub Pages mobile-first dashboard showing email status, starred queue, activity feed, and pending tasks
 
 ### Phase 1: Foundation
 **Goal**: Glen has a working Claude Code environment with verified Gmail/Drive access, a hardened MCP server that cannot send emails, and a data schema ready to receive activity logs
@@ -29,7 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The MCP server has no send, share, or filter-creation capabilities (hardened fork verified)
   4. NDJSON schema files exist with documented field definitions for feed, email summaries, and task records
   5. Custom Claude Code commands (e.g., /triage-inbox) are defined in CLAUDE.md and executable
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md -- Directory structure, .gitignore, NDJSON schemas, and utility scripts
@@ -78,21 +74,83 @@ Plans:
   2. GitHub Pages dashboard auto-deploys from the repo's docs/ directory
   3. Dashboard displays unread email count, starred queue items, recent activity feed entries, and pending task suggestions
   4. Dashboard is readable and usable on a phone screen without horizontal scrolling or tiny text
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 **UI hint**: yes
 
 Plans:
 - [x] 04-01-PLAN.md -- Build pipeline: triage.json compilation and auto-rebuild wiring into slash commands
 - [x] 04-02-PLAN.md -- Dashboard HTML: single-page responsive dashboard with Kanban layout and visual verification
 
+</details>
+
+### v2.0 Autonomous Operations
+
+**Milestone Goal:** Transform Agend Ops from a manual tool into an autonomous assistant -- scheduled triage, daily task management, invoice tracking, and mobile commands.
+
+- [ ] **Phase 5: Scheduled Automation** - GitHub Actions daily triage, auto-dashboard rebuild, and morning briefing
+- [ ] **Phase 6: Daily Task Management** - /todo commands, NDJSON storage, briefing integration, and dashboard to-do tab
+- [ ] **Phase 7: Invoice Tracking** - /invoice commands, triage pipeline hook, invoice-scanner subagent, and dashboard invoice tab
+- [ ] **Phase 8: Telegram Mobile Commands** - Two-way command execution and approval flow from phone
+
+## Phase Details
+
+### Phase 5: Scheduled Automation
+**Goal**: The system runs daily without Glen's involvement -- triage fires on schedule, dashboard data rebuilds automatically, and a morning briefing is waiting when Glen starts his day
+**Depends on**: Phase 4 (v1 complete)
+**Requirements**: SCHED-01, SCHED-02, SCHED-03
+**Success Criteria** (what must be TRUE):
+  1. Email triage runs automatically on weekday mornings via GitHub Actions without Glen's laptop being open
+  2. Dashboard JSON data and GitHub Pages deployment refresh after every automated triage run
+  3. Glen can read a daily briefing summarizing email status, pending tasks, and key deadlines each morning
+  4. Scheduled runs are logged to the activity feed with trigger type "scheduled"
+**Plans**: TBD
+
+### Phase 6: Daily Task Management
+**Goal**: Glen can track personal to-dos (things Claude cannot execute) alongside Claude-managed tasks, with to-dos visible in the briefing and on the dashboard
+**Depends on**: Phase 5
+**Requirements**: TODO-01, TODO-02, TODO-03, TODO-04
+**Success Criteria** (what must be TRUE):
+  1. Glen can add, complete, list, and prioritize to-do items via /todo command in Claude Code
+  2. To-do items persist in NDJSON with a defined schema and survive across sessions
+  3. The daily briefing includes today's to-do items alongside email and task status
+  4. Dashboard shows a "Today" tab with to-dos and their completion status
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 7: Invoice Tracking
+**Goal**: Invoice-related emails are automatically detected during triage and tracked through their lifecycle, with Glen able to manage invoices via commands and see overdue items on the dashboard
+**Depends on**: Phase 6
+**Requirements**: INV-01, INV-02, INV-03, INV-04
+**Success Criteria** (what must be TRUE):
+  1. Glen can create, list, mark-paid, and view overdue invoices via /invoice command
+  2. Invoice records persist in NDJSON with a defined schema covering amount, due date, client, and status
+  3. When triage detects an invoice-related email, a skeleton invoice record is auto-created without manual intervention
+  4. Dashboard shows an "Invoices" tab with pending, overdue, and recently paid invoices
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 8: Telegram Mobile Commands
+**Goal**: Glen can send commands and approve actions from his phone via Telegram, without opening a laptop or the dashboard
+**Depends on**: Phase 7
+**Requirements**: TELE-01, TELE-02, TELE-03
+**Success Criteria** (what must be TRUE):
+  1. A Telegram channel is configured and paired with Claude Code via the Channels plugin
+  2. Glen can execute /triage, /task, /todo, /status, and /invoice from Telegram and receive concise mobile-formatted responses
+  3. Claude sends draft previews and permission prompts to Telegram, and Glen can approve or reject from his phone
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4
+Phases execute in numeric order: 5 -> 6 -> 7 -> 8
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Foundation | 3/3 | Complete | 2026-03-23 |
-| 2. Email Triage | 2/2 | Complete   | 2026-03-23 |
-| 3. Task Execution | 4/4 | Complete | 2026-03-23 |
-| 4. Dashboard | 0/2 | In Progress | - |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Foundation | v1.0 | 3/3 | Complete | 2026-03-23 |
+| 2. Email Triage | v1.0 | 2/2 | Complete | 2026-03-23 |
+| 3. Task Execution | v1.0 | 4/4 | Complete | 2026-03-23 |
+| 4. Dashboard | v1.0 | 2/2 | Complete | 2026-03-23 |
+| 5. Scheduled Automation | v2.0 | 0/? | Not started | - |
+| 6. Daily Task Management | v2.0 | 0/? | Not started | - |
+| 7. Invoice Tracking | v2.0 | 0/? | Not started | - |
+| 8. Telegram Mobile Commands | v2.0 | 0/? | Not started | - |

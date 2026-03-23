@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: autonomous-operations
-status: Defining requirements
-stopped_at: Milestone v2.0 started
-last_updated: "2026-03-23T06:14:30.942Z"
+status: Ready to plan
+stopped_at: Roadmap created for v2.0
+last_updated: "2026-03-23"
 progress:
-  total_phases: 4
+  total_phases: 8
   completed_phases: 4
   total_plans: 11
   completed_plans: 11
@@ -19,44 +19,38 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Offload cognitive load -- Claude handles email triage and task execution so Glen can focus on high-value decisions.
-**Current focus:** Phase 04 — dashboard
+**Current focus:** Phase 5 -- Scheduled Automation
 
 ## Current Position
 
-Phase: 04
+Phase: 5 of 8 (Scheduled Automation)
 Plan: Not started
+Status: Ready to plan
+Last activity: 2026-03-23 -- v2.0 roadmap created
+
+Progress: [===========...........] 50% (4/8 phases)
 
 ## Performance Metrics
 
 **Velocity:**
-
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 11
+- Average duration: 6.5 min
+- Total execution time: ~1.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| Phase 01 | 3 | 20min | 6.7min |
+| Phase 02 | 2 | 17min | 8.5min |
+| Phase 03 | 4 | 28min | 7.0min |
+| Phase 04 | 2 | 7min | 3.5min |
 
 **Recent Trend:**
-
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 12min, 5min, 8min, 2min, 5min
+- Trend: Stable
 
 *Updated after each plan completion*
-| Phase 01 P01 | 3min | 2 tasks | 15 files |
-| Phase 01 P02 | 15min | 3 tasks | 0 files |
-| Phase 01 P03 | 2min | 2 tasks | 5 files |
-| Phase 02 P01 | 2min | 2 tasks | 3 files |
-| Phase 02 P02 | 15min | 3 tasks | 3 files |
-| Phase 03 P01 | 3min | 2 tasks | 2 files |
-| Phase 03 P02 | 12min | 3 tasks | 5 files |
-| Phase 03 P03 | 5min | 2 tasks | 1 files |
-| Phase 03 P04 | 8min | 2 tasks | 5 files |
-| Phase 04 P01 | 2min | 2 tasks | 4 files |
-| Phase 04-dashboard P02 | 5min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -65,33 +59,13 @@ Plan: Not started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [Roadmap]: 4 phases derived from 22 v1 requirements at coarse granularity. Scheduled automation deferred to v2.
-- [Roadmap]: Dashboard (Phase 4) depends only on Phase 1, can be built in parallel with Phases 2-3 if desired.
-- [Phase 01]: Used JSON Schema draft-07 for NDJSON record validation -- widely supported, jq-compatible
-- [Phase 01]: Empty JSONL files committed as append targets to avoid file-not-found on first write
-- [Phase 01]: Registered MCP server at user scope (not project scope) to avoid secrets in repo
-- [Phase 01]: Used Internal OAuth consent type to eliminate 7-day token expiry for Workspace accounts
-- [Phase 01]: Verified hardened fork tool surface before registration -- confirmed no send/share/filter/delete capabilities
-- [Phase 01]: Commands use YAML frontmatter with allowed-tools to constrain tool access per command
-- [Phase 01]: Triage-inbox created as documented Phase 2 stub rather than omitted
-- [Phase 02]: Client seed list uses NDJSON with aliases array for flexible multi-domain matching per client
-- [Phase 02]: Subagent tools listed individually (not glob) for explicit security boundary
-- [Phase 02]: action_type enum includes 'none' value to avoid null for emails with no detected action
-- [Phase 02]: Two-pass triage: metadata batch scan first, AI classification only for unresolved emails
-- [Phase 02]: Draft replies restricted to urgent + known-client emails only (not all needs-response)
-- [Phase 02]: Subagent dispatch pattern: slash command invokes agent via Task tool, agent returns formatted briefing
-- [Phase 03]: Single generalist task-executor subagent for all 4 task types -- shared retrieval/formatting/logging logic
-- [Phase 03]: Task type inferred from NL description keywords when task_type is null, defaulting to document-summary
-- [Phase 03]: Gmail drafts use in_reply_to with original message_id for proper threading on email-triggered tasks
-- [Phase 03]: Inline agent fallback: read .claude/agents/{name}.md directly when Task tool dispatch unavailable
-- [Phase 03]: Auto-queue deduplicates by source_email to prevent re-queuing on re-triage
-- [Phase 03]: Auto-queue pipeline executed against all triage data with source_email dedup preventing duplicates
-- [Phase 03]: Reset task-2026-03-23-001 from false-completed to pending before re-executing through full 6-step pipeline
-- [Phase 03]: Inline fallback must execute all 6 STEPs including STEP 4 Save Output -- stopping at STEP 3 produces incomplete results
-- [Phase 04]: Latest triage file selected by modification time (ls -t) for build script compilation
-- [Phase 04]: Post-execution auto-rebuild hooks wired into slash commands per D-07
-- [Phase 04-dashboard]: Single self-contained HTML file (961 lines) with zero external dependencies for dashboard
-- [Phase 04-dashboard]: textContent-only rendering for XSS prevention -- no innerHTML with data values
+- [v2.0 Roadmap]: 4 new phases (5-8) derived from 14 v2 requirements at coarse granularity
+- [v2.0 Roadmap]: GitHub Actions for scheduling (not Desktop tasks -- bug #36327 confirmed)
+- [v2.0 Roadmap]: To-dos before invoices -- establishes schema+command+tab pattern that invoices reuse
+- [v2.0 Roadmap]: Telegram last -- consumption layer over commands that must exist first; research preview risk contained
+- [v2.0 Roadmap]: Daily briefing created in Phase 5 (SCHED-03), extended with to-do integration in Phase 6 (TODO-03)
+- [v1 carryover]: MCP registered at user scope, Internal OAuth consent type, hardened fork verified
+- [v1 carryover]: Subagent dispatch pattern, inline agent fallback, two-pass triage
 
 ### Pending Todos
 
@@ -99,11 +73,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- ~~Google OAuth must be set to production mode on day one -- testing tokens expire in 7 days silently.~~ RESOLVED in 01-02: Internal mode configured.
-- ~~Hardened MCP fork (c0webster) must be used, not the original -- security requirement, not preference.~~ RESOLVED in 01-02: Hardened fork installed and verified.
+- Verify hardened-workspace MCP accepts OAuth credentials from environment variables (needed for GitHub Actions runner in Phase 5)
+- Dashboard privacy decision needed before Phase 7 -- invoices may contain sensitive client/amount data on public GitHub Pages
+- Channels GA status must be confirmed before Phase 8 -- research preview as of March 2026
 
 ## Session Continuity
 
-Last session: 2026-03-23T06:06:29.140Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-03-23
+Stopped at: v2.0 roadmap created, ready to plan Phase 5
 Resume file: None
