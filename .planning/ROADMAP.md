@@ -49,7 +49,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- Triage data contracts: schema extensions, client domain seed list, email-scanner subagent definition
+- [x] 02-01-PLAN.md -- Triage data contracts: schema extensions, client domain seed list, email-scanner subagent definition
 - [ ] 02-02-PLAN.md -- Triage engine: full subagent prompt, triage-inbox command update, live verification
 
 ### Phase 3: Task Execution
