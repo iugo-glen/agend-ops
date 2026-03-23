@@ -87,7 +87,7 @@ Plans:
 
 **Milestone Goal:** Transform Agend Ops from a manual tool into an autonomous assistant -- scheduled triage, daily task management, invoice tracking, and mobile commands.
 
-- [ ] **Phase 5: Scheduled Automation** - GitHub Actions daily triage, auto-dashboard rebuild, and morning briefing
+- [x] **Phase 5: Scheduled Automation** - GitHub Actions daily triage, auto-dashboard rebuild, and morning briefing (completed 2026-03-23)
 - [ ] **Phase 6: Daily Task Management** - /todo commands, NDJSON storage, briefing integration, and dashboard to-do tab
 - [ ] **Phase 7: Invoice Tracking** - /invoice commands, triage pipeline hook, invoice-scanner subagent, and dashboard invoice tab
 - [ ] **Phase 8: Telegram Mobile Commands** - Two-way command execution and approval flow from phone
@@ -103,12 +103,12 @@ Plans:
   2. Dashboard JSON data and GitHub Pages deployment refresh after every automated triage run
   3. Glen can read a daily briefing summarizing email status, pending tasks, and key deadlines each morning
   4. Scheduled runs are logged to the activity feed with trigger type "scheduled"
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 05-01-PLAN.md -- Data contracts: feed schema extension, build script update, /daily-briefing command
 - [x] 05-02-PLAN.md -- GitHub Actions scheduled triage workflow (fallback) and Desktop scheduled task (primary, MCP works with full binary paths)
-- [ ] 05-03-PLAN.md -- Dashboard briefing summary banner and visual verification
+- [x] 05-03-PLAN.md -- Dashboard briefing summary banner and visual verification
 
 ### Phase 6: Daily Task Management
 **Goal**: Glen can track personal to-dos (things Claude cannot execute) alongside Claude-managed tasks, with to-dos visible in the briefing and on the dashboard
@@ -155,7 +155,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8
 | 2. Email Triage | v1.0 | 2/2 | Complete | 2026-03-23 |
 | 3. Task Execution | v1.0 | 4/4 | Complete | 2026-03-23 |
 | 4. Dashboard | v1.0 | 2/2 | Complete | 2026-03-23 |
-| 5. Scheduled Automation | v2.0 | 2/3 | Executing | - |
+| 5. Scheduled Automation | v2.0 | 3/3 | Complete   | 2026-03-23 |
 | 6. Daily Task Management | v2.0 | 0/? | Not started | - |
 | 7. Invoice Tracking | v2.0 | 0/? | Not started | - |
 | 8. Telegram Mobile Commands | v2.0 | 0/? | Not started | - |
