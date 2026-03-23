@@ -29,7 +29,7 @@ Requirements for milestone v2.0: Autonomous Operations.
 - [x] **INV-01**: /invoice command supports create, list, mark-paid, and list-overdue operations
 - [x] **INV-02**: Invoice records stored in NDJSON (data/invoices/active.jsonl) with schema
 - [x] **INV-03**: Triage pipeline auto-detects invoice requests and creates invoice records
-- [ ] **INV-04**: Dashboard "Invoices" tab shows pending, overdue, and recently paid invoices
+- [x] **INV-04**: Dashboard "Invoices" tab shows pending, overdue, and recently paid invoices
 
 ### Telegram Mobile Commands
 
@@ -75,7 +75,7 @@ Deferred beyond v2. Tracked but not in current roadmap.
 | INV-01 | Phase 7 | Complete |
 | INV-02 | Phase 7 | Complete |
 | INV-03 | Phase 7 | Complete |
-| INV-04 | Phase 7 | Pending |
+| INV-04 | Phase 7 | Complete |
 | TELE-01 | Phase 8 | Pending |
 | TELE-02 | Phase 8 | Pending |
 | TELE-03 | Phase 8 | Pending |

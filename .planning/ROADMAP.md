@@ -89,7 +89,7 @@ Plans:
 
 - [x] **Phase 5: Scheduled Automation** - GitHub Actions daily triage, auto-dashboard rebuild, and morning briefing (completed 2026-03-23)
 - [ ] **Phase 6: Daily Task Management** - /todo commands, NDJSON storage, briefing integration, and dashboard to-do tab
-- [ ] **Phase 7: Invoice Tracking** - /invoice commands, triage pipeline hook, Xero sync, and dashboard invoice tab
+- [x] **Phase 7: Invoice Tracking** - /invoice commands, triage pipeline hook, Xero sync, and dashboard invoice tab (completed 2026-03-23)
 - [ ] **Phase 8: Telegram Mobile Commands** - Two-way command execution and approval flow from phone
 
 ## Phase Details
@@ -135,13 +135,13 @@ Plans:
   2. Invoice records persist in NDJSON with a defined schema covering amount, due date, client, and status
   3. When triage detects an invoice-related email, a skeleton invoice record is auto-created without manual intervention
   4. Dashboard shows an "Invoices" tab with pending, overdue, and recently paid invoices
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 **UI hint**: yes
 
 Plans:
 - [x] 07-01-PLAN.md -- Invoice schema, /invoice command, build script extension, and Xero MCP config
 - [x] 07-02-PLAN.md -- Triage pipeline invoice auto-queue and daily briefing invoice section
-- [ ] 07-03-PLAN.md -- Dashboard "Invoices" tab with overdue highlighting and visual verification
+- [x] 07-03-PLAN.md -- Dashboard "Invoices" tab with overdue highlighting and visual verification
 
 ### Phase 8: Telegram Mobile Commands
 **Goal**: Glen can send commands and approve actions from his phone via Telegram, without opening a laptop or the dashboard
@@ -166,5 +166,5 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8
 | 4. Dashboard | v1.0 | 2/2 | Complete | 2026-03-23 |
 | 5. Scheduled Automation | v2.0 | 3/3 | Complete   | 2026-03-23 |
 | 6. Daily Task Management | v2.0 | 2/2 | Complete | 2026-03-23 |
-| 7. Invoice Tracking | v2.0 | 0/3 | Planned | - |
+| 7. Invoice Tracking | v2.0 | 3/3 | Complete   | 2026-03-23 |
 | 8. Telegram Mobile Commands | v2.0 | 0/? | Not started | - |
