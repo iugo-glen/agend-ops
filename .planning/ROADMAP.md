@@ -159,7 +159,7 @@ Plans:
 Plans:
 - [x] 08-01-PLAN.md -- Next.js scaffold with auth, data layer, API routes, action queue endpoint, and Dockerfile
 - [x] 08-02-PLAN.md -- Dashboard UI: Kanban board, card components, action buttons, Gmail links, mobile tabs
-- [ ] 08-03-PLAN.md -- Action queue schema, /process-queue command, and triage/status integration
+- [x] 08-03-PLAN.md -- Action queue schema, /process-queue command, and triage/status integration
 - [ ] 08-04-PLAN.md -- Coolify deployment configuration and production verification
 
 ### Phase 9: Telegram Mobile Commands (deferred)
