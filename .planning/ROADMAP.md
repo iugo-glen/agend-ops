@@ -124,7 +124,7 @@ Plans:
 
 Plans:
 - [x] 06-01-PLAN.md -- Todo schema, /todo command, build script and validation extension
-- [ ] 06-02-PLAN.md -- Daily briefing todo integration and dashboard Today tab
+- [x] 06-02-PLAN.md -- Daily briefing todo integration and dashboard Today tab
 
 ### Phase 7: Invoice Tracking
 **Goal**: Invoice-related emails are automatically detected during triage and tracked through their lifecycle, with Glen able to manage invoices via commands and see overdue items on the dashboard
