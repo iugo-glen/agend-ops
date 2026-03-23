@@ -119,8 +119,12 @@ Plans:
   2. To-do items persist in NDJSON with a defined schema and survive across sessions
   3. The daily briefing includes today's to-do items alongside email and task status
   4. Dashboard shows a "Today" tab with to-dos and their completion status
-**Plans**: TBD
+**Plans:** 2 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 06-01-PLAN.md -- Todo schema, /todo command, build script and validation extension
+- [ ] 06-02-PLAN.md -- Daily briefing todo integration and dashboard Today tab
 
 ### Phase 7: Invoice Tracking
 **Goal**: Invoice-related emails are automatically detected during triage and tracked through their lifecycle, with Glen able to manage invoices via commands and see overdue items on the dashboard
@@ -156,6 +160,6 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8
 | 3. Task Execution | v1.0 | 4/4 | Complete | 2026-03-23 |
 | 4. Dashboard | v1.0 | 2/2 | Complete | 2026-03-23 |
 | 5. Scheduled Automation | v2.0 | 3/3 | Complete   | 2026-03-23 |
-| 6. Daily Task Management | v2.0 | 0/? | Not started | - |
+| 6. Daily Task Management | v2.0 | 0/2 | Planned | - |
 | 7. Invoice Tracking | v2.0 | 0/? | Not started | - |
 | 8. Telegram Mobile Commands | v2.0 | 0/? | Not started | - |
