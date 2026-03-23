@@ -62,6 +62,23 @@
       "type": "string",
       "enum": ["draft-reply", "review-attachment", "forward-to-team", "archive", "none"],
       "description": "Claude's recommended next step"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Matched client name from data/config/clients.jsonl (null if no match)"
+    },
+    "client_domain": {
+      "type": "string",
+      "description": "Matched client domain from data/config/clients.jsonl (null if no match)"
+    },
+    "action_type": {
+      "type": "string",
+      "enum": ["contract", "invoice", "meeting", "deadline", "none"],
+      "description": "Primary detected action type per D-13 (contract/legal, invoice, meeting request, deadline mention)"
+    },
+    "draft_id": {
+      "type": "string",
+      "description": "Gmail draft ID if a draft reply was created for this email"
     }
   },
   "additionalProperties": false
