@@ -1,0 +1,164 @@
+# =============================================================================
+# Scheduled Triage Workflow
+# =============================================================================
+#
+# Runs /triage-inbox on a cron schedule during ACST business hours.
+# On the first run of each day (7am ACST), also generates the daily briefing.
+#
+# ACST-to-UTC Timezone Mapping (Adelaide, UTC+9:30)
+# -------------------------------------------------
+# Early morning ACST times (7am, 9am) fall on the PREVIOUS UTC day.
+# This means weekday-only in ACST (Mon-Fri) maps to different UTC days-of-week:
+#
+# | ACST Time | UTC Time       | Cron Expression   | UTC DoW  | ACST DoW  |
+# |-----------|----------------|-------------------|----------|-----------|
+# | 07:00     | 21:30 prev day | 30 21 * * 0-4     | Sun-Thu  | Mon-Fri   |
+# | 09:00     | 23:30 prev day | 30 23 * * 0-4     | Sun-Thu  | Mon-Fri   |
+# | 11:00     | 01:30          | 30 1 * * 1-5      | Mon-Fri  | Mon-Fri   |
+# | 13:00     | 03:30          | 30 3 * * 1-5      | Mon-Fri  | Mon-Fri   |
+# | 15:00     | 05:30          | 30 5 * * 1-5      | Mon-Fri  | Mon-Fri   |
+# | 17:00     | 07:30          | 30 7 * * 1-5      | Mon-Fri  | Mon-Fri   |
+#
+# Auth: Uses PAT_TOKEN instead of default GITHUB_TOKEN as a workaround for
+# OIDC bug #814 (claude-code-action) which causes "User does not have write
+# access" errors on cron-triggered (non-interactive) workflows. The PAT must
+# have Contents: Read & Write permission on this repo.
+#
+# If PAT causes issues, upgrade to a custom GitHub App with
+# actions/create-github-app-token@v2.
+#
+# Error handling (D-09): If triage fails, an error-level feed entry is logged
+# to data/feed.jsonl so it appears in /feed and the dashboard activity column.
+#
+# References:
+# - 05-RESEARCH.md: Full ACST-to-UTC mapping, auth workarounds, pitfalls
+# - D-01: Every 2 hours during business hours
+# - D-02: ACST timezone (Adelaide)
+# - D-03: Weekdays only
+# - D-04: Desktop tasks tested, GitHub Actions confirmed as approach
+# - D-07: First run of the day also generates daily briefing
+# - D-09: Failed runs log error-level feed entries
+# =============================================================================
+
+name: Scheduled Triage
+
+on:
+  schedule:
+    # All times ACST (UTC+9:30) mapped to UTC for weekdays Mon-Fri ACST
+    # Per D-01: every 2 hours during business hours
+    # Per D-02: ACST timezone (Adelaide)
+    # Per D-03: weekdays only
+    - cron: '30 21 * * 0-4'  # 07:00 ACST (Mon-Fri) = 21:30 UTC (Sun-Thu)
+    - cron: '30 23 * * 0-4'  # 09:00 ACST (Mon-Fri) = 23:30 UTC (Sun-Thu)
+    - cron: '30 1 * * 1-5'   # 11:00 ACST (Mon-Fri) = 01:30 UTC (Mon-Fri)
+    - cron: '30 3 * * 1-5'   # 13:00 ACST (Mon-Fri) = 03:30 UTC (Mon-Fri)
+    - cron: '30 5 * * 1-5'   # 15:00 ACST (Mon-Fri) = 05:30 UTC (Mon-Fri)
+    - cron: '30 7 * * 1-5'   # 17:00 ACST (Mon-Fri) = 07:30 UTC (Mon-Fri)
+  workflow_dispatch: {}       # Manual trigger for testing
+
+permissions:
+  contents: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout with PAT for push permissions
+      # Uses PAT_TOKEN (not default GITHUB_TOKEN) to ensure push works on
+      # cron triggers. Workaround for OIDC bug #814 in claude-code-action.
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+
+      # -----------------------------------------------------------------------
+      # Step 2: Configure git identity for commits from the runner
+      # -----------------------------------------------------------------------
+      - name: Configure git
+        run: |
+          git config user.name "agend-ops-bot"
+          git config user.email "agend-ops-bot@users.noreply.github.com"
+
+      # -----------------------------------------------------------------------
+      # Step 3: Install hardened-workspace MCP server
+      # The hardened fork strips send/share/filter tools to prevent prompt
+      # injection exfiltration. On the runner we install via pip with uv
+      # fallback, since the runner environment may not have uv pre-installed.
+      # -----------------------------------------------------------------------
+      - name: Install hardened-workspace MCP
+        run: |
+          git clone --depth 1 https://github.com/c0webster/hardened-google-workspace-mcp.git /tmp/hardened-mcp
+          cd /tmp/hardened-mcp
+          pip install uv 2>/dev/null || true
+          uv sync 2>/dev/null || pip install -e .
+
+      # -----------------------------------------------------------------------
+      # Step 4: Create MCP config with Google OAuth credentials from secrets
+      # The hardened-workspace server reads OAuth credentials from env vars.
+      # If env var injection fails at runtime, the fallback is to write creds
+      # to a temp file and set GOOGLE_MCP_CREDENTIALS_DIR (see 05-RESEARCH.md
+      # Open Question 1).
+      # -----------------------------------------------------------------------
+      - name: Create MCP config
+        run: |
+          cat > /tmp/mcp-config.json << 'MCPEOF'
+          {
+            "mcpServers": {
+              "hardened-workspace": {
+                "command": "uv",
+                "args": ["--directory", "/tmp/hardened-mcp", "run", "python", "-m", "hardened_google_workspace_mcp"],
+                "env": {
+                  "GOOGLE_OAUTH_CLIENT_ID": "${{ secrets.GOOGLE_CLIENT_ID }}",
+                  "GOOGLE_OAUTH_CLIENT_SECRET": "${{ secrets.GOOGLE_CLIENT_SECRET }}",
+                  "GOOGLE_REFRESH_TOKEN": "${{ secrets.GOOGLE_REFRESH_TOKEN }}"
+                }
+              }
+            }
+          }
+          MCPEOF
+
+      # -----------------------------------------------------------------------
+      # Step 5: Run Claude Code with triage + conditional briefing
+      #
+      # Prompt logic:
+      # 1. Run /triage-inbox (existing command that scans, categorizes, auto-
+      #    queues tasks, rebuilds dashboard, and commits)
+      # 2. First-run-of-day detection (D-07): if data/briefings/YYYY-MM-DD.md
+      #    does not exist, also run /daily-briefing
+      # 3. Commit + push with rebase to handle concurrent local writes
+      #    (Pitfall 4: NDJSON append-only format means rebases rarely conflict)
+      # 4. Error logging (D-09): if any step fails, log a critical-level feed
+      #    entry so it appears in /feed and the dashboard
+      # -----------------------------------------------------------------------
+      - name: Run triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are running as a scheduled automation on a GitHub Actions runner.
+            Environment: GITHUB_ACTIONS=true, trigger=scheduled.
+
+            1. Run /triage-inbox to scan and categorize emails.
+
+            2. Check if today's briefing already exists:
+               ls data/briefings/$(date +%Y-%m-%d).md 2>/dev/null
+               If it does NOT exist, this is the first triage run of the day.
+               Run /daily-briefing to generate the morning briefing.
+
+            3. After all operations complete, ensure all data changes are committed and pushed:
+               git add data/ docs/
+               git commit -m "data: scheduled triage $(date +%Y-%m-%dT%H%M)" || true
+               git pull --rebase origin main || git pull --rebase origin master
+               git push
+
+            If any step fails, log an error to data/feed.jsonl:
+            echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%S+00:00)'","type":"system","summary":"Scheduled triage failed: [error description]","level":"critical","trigger":"scheduled"}' >> data/feed.jsonl
+            Then commit and push the error log entry.
+          claude_args: |
+            --mcp-config /tmp/mcp-config.json
+            --model claude-sonnet-4-6
+            --max-turns 25
