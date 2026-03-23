@@ -78,8 +78,12 @@ Plans:
   2. GitHub Pages dashboard auto-deploys from the repo's docs/ directory
   3. Dashboard displays unread email count, starred queue items, recent activity feed entries, and pending task suggestions
   4. Dashboard is readable and usable on a phone screen without horizontal scrolling or tiny text
-**Plans**: TBD
+**Plans:** 2 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 04-01-PLAN.md -- Build pipeline: triage.json compilation and auto-rebuild wiring into slash commands
+- [ ] 04-02-PLAN.md -- Dashboard HTML: single-page responsive dashboard with Kanban layout and visual verification
 
 ## Progress
 
@@ -91,4 +95,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation | 3/3 | Complete | 2026-03-23 |
 | 2. Email Triage | 2/2 | Complete   | 2026-03-23 |
 | 3. Task Execution | 4/4 | Complete | 2026-03-23 |
-| 4. Dashboard | 0/? | Not started | - |
+| 4. Dashboard | 0/2 | In Progress | - |
