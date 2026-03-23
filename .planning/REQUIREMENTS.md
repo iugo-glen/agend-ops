@@ -3,120 +3,88 @@
 **Defined:** 2026-03-23
 **Core Value:** Offload cognitive load — Claude handles email triage and task execution so Glen can focus on high-value decisions.
 
-## v1 Requirements
+## v1 Requirements (Complete)
 
-Requirements for initial release. Each maps to roadmap phases.
-
-### Foundation
-
-- [x] **FOUND-01**: Google OAuth 2.0 configured in PRODUCTION mode for Gmail and Drive access
-- [x] **FOUND-02**: Hardened Google Workspace MCP server (c0webster fork) installed and configured with security-stripped capabilities
-- [x] **FOUND-03**: NDJSON data schema defined for activity feed, email summaries, and task records
-- [x] **FOUND-04**: CLAUDE.md project configuration with custom commands for common operations
-- [x] **FOUND-05**: Git repo directory structure established (data/, dashboard/, scripts/)
-
-### Email Triage
-
-- [x] **EMAIL-01**: Claude can scan Gmail inbox and retrieve unread and recent emails via MCP
-- [x] **EMAIL-02**: Emails categorized into 4 buckets: urgent, needs-response, informational, low-priority
-- [x] **EMAIL-03**: Starred emails surface as highest-priority "needs my action" queue
-- [x] **EMAIL-04**: Email priority classification based on sender importance (known clients vs unknown) and content intent
-- [x] **EMAIL-05**: Claude generates draft replies saved as local markdown and created as Gmail drafts
-- [x] **EMAIL-06**: Human-in-the-loop approval required before any response is sent (enforced by hardened MCP)
-- [x] **EMAIL-07**: Actionable items detected in emails — contracts, invoices, meeting requests, deadlines — with suggested next steps
-- [x] **EMAIL-08**: Email preprocessing pipeline strips HTML, signatures, and reply chains to control token costs
-
-### Task Execution
-
-- [x] **TASK-01**: Manual task kickoff via natural language commands in Claude Code
-- [x] **TASK-02**: Claude proactively suggests tasks from email triage results ("Found a contract — want me to review it?")
-- [x] **TASK-03**: Document retrieval from Google Drive via MCP for task execution
-- [x] **TASK-04**: Document analysis — summarize key terms, flag risks, identify obligations, highlight deadlines
-- [x] **TASK-05**: Draft response or summary generation for completed task outcomes
-
-### Visibility
-
-- [x] **VIS-01**: Activity feed logged as NDJSON (data/feed.jsonl) with timestamp, trigger, action, inputs, outputs, and outcome
-- [x] **VIS-02**: GitHub Pages dashboard auto-deployed from repo
-- [x] **VIS-03**: Dashboard displays: unread email count, starred queue, recent activity feed, pending task suggestions
-- [x] **VIS-04**: Dashboard is mobile-first and responsive — glanceable from phone
+All 22 v1 requirements delivered across 4 phases. See PROJECT.md Validated section for full list.
 
 ## v2 Requirements
 
-Deferred to future release. Tracked but not in current roadmap.
+Requirements for milestone v2.0: Autonomous Operations.
 
-### Automation
+### Scheduling
 
-- **AUTO-01**: Scheduled email triage via GitHub Actions (e.g., every 30 min on weekdays)
-- **AUTO-02**: Auto-commit triage results and dashboard data after each scan
-- **AUTO-03**: Google Drive one-way sync (repo to Drive) via rclone
+- [ ] **SCHED-01**: Claude Desktop recurring task runs /triage-inbox on a configurable schedule (test MCP access, document fallback to GitHub Actions)
+- [ ] **SCHED-02**: Dashboard data auto-rebuilds after each scheduled triage run
+- [ ] **SCHED-03**: Daily briefing generated each morning — email status, pending tasks, today's to-dos, key deadlines
 
-### Productivity
+### Daily Task Management
 
-- **PROD-01**: Daily task list with add/complete/prioritize operations
-- **PROD-02**: POC tracker — status board for proof-of-concept experiments
-- **PROD-03**: Invoice tracking — what needs to be billed, when, to whom
-- **PROD-04**: Daily digest summary (in dashboard, not email)
+- [ ] **TODO-01**: /todo command supports add, complete, list, and prioritize operations
+- [ ] **TODO-02**: To-do items stored in NDJSON (data/todos/active.jsonl) with schema
+- [ ] **TODO-03**: Daily briefing integrates to-do items alongside email and task status
+- [ ] **TODO-04**: Dashboard "Today" tab shows daily to-dos with completion status
 
-### Mobile Commands
+### Invoice Tracking
 
-- **MOBL-01**: Telegram or Discord command channel for sending tasks from phone
-- **MOBL-02**: Two-way approval workflow from mobile (approve/reject drafts)
+- [ ] **INV-01**: /invoice command supports create, list, mark-paid, and list-overdue operations
+- [ ] **INV-02**: Invoice records stored in NDJSON (data/invoices/active.jsonl) with schema
+- [ ] **INV-03**: Triage pipeline auto-detects invoice requests and creates invoice records
+- [ ] **INV-04**: Dashboard "Invoices" tab shows pending, overdue, and recently paid invoices
+
+### Telegram Mobile Commands
+
+- [ ] **TELE-01**: Telegram channel configured with Claude Code Channels plugin
+- [ ] **TELE-02**: Two-way command execution — /triage, /task, /todo, /status, /invoice from Telegram
+- [ ] **TELE-03**: Approval flow — Claude sends draft previews to Telegram, Glen approves/rejects from phone
+
+## Future Requirements
+
+Deferred beyond v2. Tracked but not in current roadmap.
 
 ### Intelligence
 
 - **INTL-01**: Context accumulation — client history, past decisions stored in structured files
 - **INTL-02**: Learning from triage corrections — improve categorization over time
 
-## Out of Scope
+### Productivity
 
-Explicitly excluded. Documented to prevent scope creep.
+- **PROD-01**: POC tracker — status board for proof-of-concept experiments
+- **PROD-02**: Google Drive sync — repo to Drive via rclone
+
+## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Autonomous email sending | Prompt injection risk — attacker embeds instructions in email. Hardened MCP enforces this. Graduate to auto-send only after proven accuracy. |
-| Real-time push notifications | Adds infrastructure complexity, defeats cognitive load reduction purpose |
-| Full calendar management | Separate complex domain (timezones, conflicts, attendees). Detect meeting requests in emails instead. |
-| Native mobile app | Months of development for single-user read-only status. GitHub Pages + Telegram sufficient. |
-| Multi-user / team features | Transforms personal tool into team platform. Auth, permissions, data isolation each a project. |
-| Integration with every tool | Each integration is a maintenance surface. Gmail + Drive + GitHub only for v1. |
-| Daily digest email | Building email sending for a tool meant to reduce email. Activity feed serves same purpose. |
-| Unbounded conversational memory | Context growth is expensive and slow. Use structured summaries in git with bounded lookback. |
+| Autonomous email sending | Security risk — hardened MCP enforces human-in-the-loop |
+| Real-time push notifications | Complexity without proportional value — Telegram + dashboard sufficient |
+| Full calendar management | Separate complex domain — detect meeting requests instead |
+| Native mobile app | GitHub Pages + Telegram covers mobile needs |
+| Multi-user / team features | Single-user tool — share dashboard URL if needed |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1 | Complete |
-| FOUND-02 | Phase 1 | Complete |
-| FOUND-03 | Phase 1 | Complete |
-| FOUND-04 | Phase 1 | Complete |
-| FOUND-05 | Phase 1 | Complete |
-| EMAIL-01 | Phase 2 | Complete |
-| EMAIL-02 | Phase 2 | Complete |
-| EMAIL-03 | Phase 2 | Complete |
-| EMAIL-04 | Phase 2 | Complete |
-| EMAIL-05 | Phase 2 | Complete |
-| EMAIL-06 | Phase 2 | Complete |
-| EMAIL-07 | Phase 2 | Complete |
-| EMAIL-08 | Phase 2 | Complete |
-| TASK-01 | Phase 3 | Complete |
-| TASK-02 | Phase 3 | Complete |
-| TASK-03 | Phase 3 | Complete |
-| TASK-04 | Phase 3 | Complete |
-| TASK-05 | Phase 3 | Complete |
-| VIS-01 | Phase 4 | Complete |
-| VIS-02 | Phase 4 | Complete |
-| VIS-03 | Phase 4 | Complete |
-| VIS-04 | Phase 4 | Complete |
+| SCHED-01 | Phase ? | Pending |
+| SCHED-02 | Phase ? | Pending |
+| SCHED-03 | Phase ? | Pending |
+| TODO-01 | Phase ? | Pending |
+| TODO-02 | Phase ? | Pending |
+| TODO-03 | Phase ? | Pending |
+| TODO-04 | Phase ? | Pending |
+| INV-01 | Phase ? | Pending |
+| INV-02 | Phase ? | Pending |
+| INV-03 | Phase ? | Pending |
+| INV-04 | Phase ? | Pending |
+| TELE-01 | Phase ? | Pending |
+| TELE-02 | Phase ? | Pending |
+| TELE-03 | Phase ? | Pending |
 
 **Coverage:**
-- v1 requirements: 22 total
-- Mapped to phases: 22
-- Unmapped: 0
+- v2 requirements: 14 total
+- Mapped to phases: 0
+- Unmapped: 14
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-23 after roadmap creation*
+*Last updated: 2026-03-23 after v2.0 milestone definition*
