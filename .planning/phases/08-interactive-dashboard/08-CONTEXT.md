@@ -31,8 +31,9 @@ Replace the static GitHub Pages dashboard with a Next.js app deployed on Coolify
 
 ### Design
 - **D-11:** Evolve the Notion aesthetic for interactivity — keep the warm tones and clean typography but redesign layout for an action-focused experience. Think Linear meets Notion.
-- **D-12:** Better mobile UX — touch targets for action buttons, swipe gestures if appropriate
-- **D-13:** Same data domains (emails, tasks, todos, invoices, activity) but cards gain action buttons
+- **D-12:** Kanban board style — columns by domain (Today, Emails, Tasks, Invoices, Activity). Cards within each column have action buttons.
+- **D-13:** Better mobile UX — touch targets for action buttons. On mobile, columns become swipeable tabs (same as current dashboard pattern).
+- **D-14:** Same data domains but cards gain action buttons (mark paid, complete, view draft, trigger triage)
 
 ### Claude's Discretion
 - Next.js project structure (App Router vs Pages Router)
