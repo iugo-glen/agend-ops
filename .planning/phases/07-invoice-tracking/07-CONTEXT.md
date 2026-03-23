@@ -16,7 +16,8 @@ Add invoice tracking to Agend Ops — /invoice command, NDJSON schema, triage pi
 ### Invoice Lifecycle
 - **D-01:** Standard lifecycle: draft → sent → overdue → paid. Plus disputed and written-off states.
 - **D-02:** Overdue auto-detected based on due_date vs current date
-- **D-03:** Track only — invoices are created/sent via external tools (Xero, MYOB, email). This system tracks status.
+- **D-03:** Primary data source is Xero (Glen's accounting software) — sync invoice status from Xero API, not just email detection
+- **D-03b:** Two problems to solve: (1) forgetting to invoice after work is done, (2) losing track of unpaid/overdue invoices
 
 ### Invoice Data
 - **D-04:** Core fields: client_name, amount, due_date, status, description
@@ -28,6 +29,11 @@ Add invoice tracking to Agend Ops — /invoice command, NDJSON schema, triage pi
 ### Triage Integration
 - **D-09:** Best-effort extraction from invoice-related emails — try to extract client, amount, due date, project code. Flag uncertain fields for Glen to confirm.
 - **D-10:** Auto-create invoice records from triage-detected invoice emails (action_type: "invoice")
+
+### Xero Integration
+- **D-11:** Connect to Xero API to pull real invoice data (status, amounts, due dates, payment status)
+- **D-12:** Xero is the source of truth for invoice lifecycle — local NDJSON is a cache/mirror for dashboard display
+- **D-13:** Email detection serves as a "you should invoice this" reminder, Xero serves as "here's what's outstanding"
 
 ### Claude's Discretion
 - Invoice NDJSON schema exact field design (following todo-record.json pattern)
