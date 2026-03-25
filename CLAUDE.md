@@ -157,6 +157,7 @@ fork and is the primary defense against prompt injection attacks.
   - Schema: `schemas/action-queue-entry.json`
 - Schemas: See `schemas/` directory for full JSON Schema definitions of all record types
 - Dashboard data: Run `scripts/build-dashboard-data.sh` to compile NDJSON into `docs/feed.json` and `docs/tasks.json`
+- Server sync: After committing data changes, run `bash scripts/push-and-sync.sh` instead of `git push` to push AND sync the Coolify server at 103.249.238.17 (/opt/agend-ops)
 
 ## Commands
 
