@@ -37,7 +37,8 @@ export function getLatestTriage(): TriageRecord[] {
   if (files.length === 0) return [];
 
   const latestFile = files[files.length - 1];
-  return readNDJSON<TriageRecord>(path.join('triage', latestFile));
+  return readNDJSON<TriageRecord>(path.join('triage', latestFile))
+    .filter((r) => !(r as TriageRecord & { dismissed?: boolean }).dismissed);
 }
 
 export function getTodos(): TodoRecord[] {

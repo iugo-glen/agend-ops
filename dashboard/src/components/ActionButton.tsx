@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import clsx from 'clsx';
 
-type ActionType = 'mark-paid' | 'complete-todo' | 'complete-task' | 'trigger-triage';
+type ActionType = 'mark-paid' | 'complete-todo' | 'complete-task' | 'trigger-triage' | 'dismiss-email';
 type ButtonState = 'idle' | 'loading' | 'queued' | 'error';
 type Variant = 'primary' | 'danger' | 'ghost';
 

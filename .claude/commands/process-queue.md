@@ -90,6 +90,23 @@ For each queued action, execute based on action type:
 
 **IMPORTANT:** If this action is encountered during a /triage-inbox run (i.e., triage called process-queue), skip `trigger-triage` actions to prevent recursion.
 
+### dismiss-email
+
+1. Read the latest triage file in `data/triage/` (most recent .jsonl)
+2. Find the record matching `target_id` (by message_id)
+3. Add `"dismissed": true` to that record
+4. Rewrite the triage file:
+   ```bash
+   MSG_ID="{target_id}"
+   TRIAGE_FILE=$(ls -t data/triage/*.jsonl | head -1)
+   jq -c "if .message_id == \"$MSG_ID\" then . + {dismissed: true} else . end" "$TRIAGE_FILE" > "$TRIAGE_FILE.tmp" && mv "$TRIAGE_FILE.tmp" "$TRIAGE_FILE"
+   ```
+5. Log to `data/feed.jsonl`:
+   ```bash
+   NOW=$(date +%Y-%m-%dT%H:%M:%S%z | sed 's/\(..\)$/:\1/')
+   jq -n -c --arg ts "$NOW" --arg msg "$MSG_ID" '{ts: $ts, type: "command", summary: ("Dismissed email " + $msg + " (dashboard action)"), level: "info", trigger: "hook"}' >> data/feed.jsonl
+   ```
+
 ## Step 4: Update Queue Entries
 
 For each processed action:
@@ -115,7 +132,7 @@ bash scripts/build-dashboard-data.sh
 ## Step 6: Commit and Report
 
 ```bash
-git add data/queue/ data/invoices/ data/todos/ data/tasks/ data/feed.jsonl docs/
+git add data/queue/ data/invoices/ data/todos/ data/tasks/ data/triage/ data/feed.jsonl docs/
 git commit -m "feat: process {N} dashboard actions"
 ```
 

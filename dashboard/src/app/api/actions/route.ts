@@ -7,6 +7,7 @@ const VALID_ACTIONS = [
   'complete-todo',
   'complete-task',
   'trigger-triage',
+  'dismiss-email',
 ] as const;
 
 export async function POST(request: Request) {

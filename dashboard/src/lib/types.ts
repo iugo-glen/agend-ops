@@ -84,7 +84,7 @@ export interface InvoiceRecord {
 export interface QueuedAction {
   id: string;
   ts: string;
-  action: 'mark-paid' | 'complete-todo' | 'complete-task' | 'trigger-triage';
+  action: 'mark-paid' | 'complete-todo' | 'complete-task' | 'trigger-triage' | 'dismiss-email';
   target_id: string;
   status: 'queued' | 'completed' | 'failed';
   requested_by: string;
