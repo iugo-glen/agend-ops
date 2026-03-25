@@ -129,5 +129,47 @@
       "completed_tasks": 2,
       "urgent_items": 2
     }
+  },
+  {
+    "ts": "2026-03-26T09:22:22+10:30",
+    "type": "task",
+    "summary": "Completed task: Sign Instalment Activity Statement (IAS) for IUGO Pty Ltd via Growth iQ/Xero for ATO lodgement (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T09:22:22+10:30",
+    "type": "task",
+    "summary": "Completed task: Review Manju's proposed monthly catch-up schedule with DCA team (from Manju Jewargi @ needs-response) (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T09:22:22+10:30",
+    "type": "task",
+    "summary": "Completed task: Confirm availability and attendance for AVA website preliminary meeting (from Melissa King @ Australian Veterinary Association) (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T09:22:22+10:30",
+    "type": "task",
+    "summary": "Completed task: Download and upload IUGO payables ABA file to bank ($21,682.00) (from Clarissa Hidalgo @ urgent) (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T09:22:22+10:30",
+    "type": "task",
+    "summary": "Completed task: Download and upload Agend payables ABA file to bank ($4,669.50) (from Clarissa Hidalgo @ urgent) (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T09:22:22+10:30",
+    "type": "task",
+    "summary": "Completed task: Kick off MRC Member Portal implementation project onboarding (from Ignition @ urgent) (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
   }
 ]
