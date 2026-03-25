@@ -26,6 +26,13 @@ export function Header({ lastUpdated }: HeaderProps) {
             Last updated: {relativeTime}
           </span>
         )}
+        <a
+          href="/help"
+          className="rounded border border-border-default bg-transparent px-2 py-1 text-[length:var(--text-sm)] text-text-secondary transition-opacity hover:opacity-80"
+          style={{ minHeight: '32px', display: 'inline-flex', alignItems: 'center' }}
+        >
+          Guide
+        </a>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
           className="rounded border border-border-default bg-transparent px-2 py-1 text-[length:var(--text-sm)] text-text-secondary transition-opacity hover:opacity-80 cursor-pointer"
