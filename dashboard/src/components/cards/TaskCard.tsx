@@ -3,6 +3,7 @@
 import { formatDistanceToNow } from 'date-fns';
 import type { TaskRecord } from '@/lib/types';
 import { ActionButton } from '@/components/ActionButton';
+import { QueuedBadge } from '@/components/QueuedBadge';
 
 interface TaskCardProps {
   record: TaskRecord;
@@ -74,7 +75,7 @@ export function TaskCard({ record }: TaskCardProps) {
 
       {/* Action */}
       {record.status === 'pending' && (
-        <div className="mt-2 pl-4">
+        <div className="mt-2 flex items-center gap-2 pl-4">
           <ActionButton
             action="complete-task"
             targetId={record.id}
@@ -82,6 +83,7 @@ export function TaskCard({ record }: TaskCardProps) {
             icon={'\u2713'}
             variant="ghost"
           />
+          <QueuedBadge targetId={record.id} />
         </div>
       )}
     </div>

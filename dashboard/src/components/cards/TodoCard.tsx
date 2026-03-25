@@ -3,6 +3,7 @@
 import { format } from 'date-fns';
 import type { TodoRecord } from '@/lib/types';
 import { ActionButton } from '@/components/ActionButton';
+import { QueuedBadge } from '@/components/QueuedBadge';
 
 interface TodoCardProps {
   record: TodoRecord;
@@ -46,7 +47,7 @@ export function TodoCard({ record }: TodoCardProps) {
 
       {/* Action */}
       {record.status === 'active' && (
-        <div className="mt-2">
+        <div className="mt-2 flex items-center gap-2">
           <ActionButton
             action="complete-todo"
             targetId={record.id}
@@ -54,6 +55,7 @@ export function TodoCard({ record }: TodoCardProps) {
             icon={'\u2713'}
             variant="ghost"
           />
+          <QueuedBadge targetId={record.id} />
         </div>
       )}
     </div>

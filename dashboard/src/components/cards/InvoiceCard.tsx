@@ -3,6 +3,7 @@
 import { format } from 'date-fns';
 import type { InvoiceRecord } from '@/lib/types';
 import { ActionButton } from '@/components/ActionButton';
+import { QueuedBadge } from '@/components/QueuedBadge';
 
 interface InvoiceCardProps {
   record: InvoiceRecord;
@@ -102,13 +103,14 @@ export function InvoiceCard({ record }: InvoiceCardProps) {
 
       {/* Action: Mark Paid for sent or reminder invoices */}
       {(record.status === 'sent' || record.status === 'reminder') && (
-        <div className="mt-2">
+        <div className="mt-2 flex items-center gap-2">
           <ActionButton
             action="mark-paid"
             targetId={record.id}
             label="Mark Paid"
             variant="primary"
           />
+          <QueuedBadge targetId={record.id} />
         </div>
       )}
     </div>

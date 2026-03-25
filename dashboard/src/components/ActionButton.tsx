@@ -38,7 +38,12 @@ export function ActionButton({
       if (!res.ok) throw new Error('Action failed');
 
       setState('queued');
-      setTimeout(() => setState('idle'), 3000);
+      // Persist queued IDs in sessionStorage so badge survives re-renders
+      const queued = JSON.parse(sessionStorage.getItem('queuedActions') || '[]');
+      if (!queued.includes(targetId)) queued.push(targetId);
+      sessionStorage.setItem('queuedActions', JSON.stringify(queued));
+      // Dispatch event so cards can react
+      window.dispatchEvent(new CustomEvent('action-queued', { detail: { targetId, action } }));
     } catch {
       setState('error');
       setTimeout(() => setState('idle'), 3000);
