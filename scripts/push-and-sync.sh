@@ -10,6 +10,6 @@ git push
 # which conflicts with the tracked version from git push. Safe to discard since
 # we already pulled the queue entries before processing.
 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 root@103.249.238.17 \
-  "cd /opt/agend-ops && git checkout -- data/queue/ 2>/dev/null; git clean -f data/queue/ 2>/dev/null; git pull --ff-only" &
+  "cd /opt/agend-ops && git checkout -- data/queue/ 2>/dev/null; git clean -f data/queue/ 2>/dev/null; git pull --ff-only && chown -R 1000:1000 data/queue/ && chmod 775 data/queue/ && chmod 664 data/queue/* 2>/dev/null" &
 
 echo "Pushed + server sync triggered"
