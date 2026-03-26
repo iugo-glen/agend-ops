@@ -171,5 +171,138 @@
     "summary": "Completed task: Kick off MRC Member Portal implementation project onboarding (from Ignition @ urgent) (dashboard action)",
     "level": "info",
     "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d187e1209d1391 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d18bb524253dc2 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d18c0891237d60 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d18eec465c37d2 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d19162293af5d8 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d191e0fa3367b4 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d192794259c794 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d1937349596299 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d193ba4b65eeab (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d193d3faf5450f (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d193e10821444c (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d194c8b4ff75bf (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d195e61dfb356b (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d1960493878f8b (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d19774d9d87d1a (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d19c0f2d02dede (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d19cf7c52317bc (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d1a0d6cd782120 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
+  },
+  {
+    "ts": "2026-03-26T12:11:23+10:30",
+    "type": "command",
+    "summary": "Dismissed email 19d1a14e95155708 (dashboard action)",
+    "level": "info",
+    "trigger": "hook"
   }
 ]

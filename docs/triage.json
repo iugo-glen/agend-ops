@@ -13,7 +13,8 @@
     "snippet": "iugo-glen/reddit-reader E2E Tests workflow run failed. Duration: 45s. Jobs: test failed (4 annotations).",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d1a0d6cd782120",
@@ -29,7 +30,8 @@
     "snippet": "iugo-glen/reddit-reader E2E Tests workflow run failed. Duration: 52s. Jobs: test failed (4 annotations).",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d19cf7c52317bc",
@@ -45,7 +47,8 @@
     "snippet": "You have 2 new LinkedIn invitations awaiting your response.",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d19c0f2d02dede",
@@ -63,7 +66,8 @@
     "action_items": [
       "Check Google Apps Script Eml Manager - recurring authorisation failures"
     ],
-    "suggested_action": "none"
+    "suggested_action": "none",
+    "dismissed": true
   },
   {
     "message_id": "19d19774d9d87d1a",
@@ -79,7 +83,8 @@
     "snippet": "No hours tracked last week. Harvest weekly report for Iugo Pty Ltd.",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d1960493878f8b",
@@ -98,7 +103,8 @@
       "Confirm Thursday 11am with Gayle Sloan (WMRR) and send calendar invite"
     ],
     "suggested_action": "draft-reply",
-    "draft_id": "r53892479725854772"
+    "draft_id": "r53892479725854772",
+    "dismissed": true
   },
   {
     "message_id": "19d195e61dfb356b",
@@ -114,7 +120,8 @@
     "snippet": "SA Business Chamber weekly newsletter - fuel supply impacts and support.",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d194c8b4ff75bf",
@@ -130,7 +137,8 @@
     "snippet": "iugo-glen/reddit-reader E2E Tests workflow run failed. Duration: 42s. Jobs: test failed (4 annotations).",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d1943eba17aebc",
@@ -167,7 +175,8 @@
     "snippet": "David Mifsud confirmed Wed 3pm slot for interview. Thread resolved.",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d193d3faf5450f",
@@ -183,7 +192,8 @@
     "snippet": "Outgoing: Glen shared ACI/STANSW examples with Gayle re proposal implementation.",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d193ba4b65eeab",
@@ -199,7 +209,8 @@
     "snippet": "Calendar confirmation: Meeting with David Mifsud (interview) Wed 25 Mar 15:00-16:00 ACDT.",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d1937349596299",
@@ -215,7 +226,8 @@
     "snippet": "David Mifsud checking in on Wed/Fri interview timing - resolved by reply confirming Wed 3pm.",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d192794259c794",
@@ -233,7 +245,8 @@
     "action_items": [
       "Review auDA verification request for properadvice.com.au - trust deed documentation needed"
     ],
-    "suggested_action": "none"
+    "suggested_action": "none",
+    "dismissed": true
   },
   {
     "message_id": "19d191e0fa3367b4",
@@ -252,7 +265,8 @@
       "Confirm Thursday 10:30am DCA monthly catch-up and send recurring calendar invite"
     ],
     "suggested_action": "draft-reply",
-    "draft_id": "r2752434767724065204"
+    "draft_id": "r2752434767724065204",
+    "dismissed": true
   },
   {
     "message_id": "19d19162293af5d8",
@@ -268,7 +282,8 @@
     "snippet": "iugo-glen/reddit-reader E2E Tests workflow run failed. Duration: 49s. Jobs: test failed (4 annotations).",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   },
   {
     "message_id": "19d18eec465c37d2",
@@ -286,7 +301,8 @@
     "action_items": [
       "Review Australian Community Housing meeting notes for follow-up opportunities"
     ],
-    "suggested_action": "none"
+    "suggested_action": "none",
+    "dismissed": true
   },
   {
     "message_id": "19d18c0891237d60",
@@ -304,7 +320,8 @@
     "action_items": [
       "Review Hertz Trucks payment notice and process if valid"
     ],
-    "suggested_action": "none"
+    "suggested_action": "none",
+    "dismissed": true
   },
   {
     "message_id": "19d18bb524253dc2",
@@ -323,7 +340,8 @@
       "Sign IAS (Instalment Activity Statement) for IUGO Pty Ltd via Growth iQ / Xero - ATO lodgement required"
     ],
     "suggested_action": "task",
-    "task_id": "task-2026-03-23-019"
+    "task_id": "task-2026-03-23-019",
+    "dismissed": true
   },
   {
     "message_id": "19d187e1209d1391",
@@ -339,6 +357,7 @@
     "snippet": "InDaily SA Monday newsletter - SA election aftermath, fuel prices, mining industry.",
     "action_type": "none",
     "action_items": [],
-    "suggested_action": "archive"
+    "suggested_action": "archive",
+    "dismissed": true
   }
 ]
