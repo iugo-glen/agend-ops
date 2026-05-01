@@ -26,6 +26,7 @@ References: see .planning/phases/10-obsidian-knowledge-layer-client-notes-build-
 
 import argparse
 import collections
+import fcntl
 import json
 import os
 import re
@@ -763,6 +764,30 @@ def run_incremental(data_root: Path, build_root: Path, record_type: str = "all",
 # =========================================================================
 
 
+# Issue 8 (post-review fix): fswatch + xargs can spawn multiple Python processes
+# in parallel when batches arrive close together. Without serialization, two
+# projections could race on `_update_frontmatter_last_synced` for the same
+# target. A blocking flock acquire ensures sequential execution; each waiter
+# reads disk state at acquire time so all changes propagate (cost: 1 extra
+# projection per concurrent burst, acceptable given fswatch --latency 2 already
+# coalesces batches). Skipped under dry_run (Issue 5: strictly read-only).
+_PROJECTION_LOCK_PATH = Path(tempfile.gettempdir()) / "agend-vault-projection.lock"
+
+
+def _acquire_projection_lock(dry_run: bool):
+    """Open /tmp/agend-vault-projection.lock and acquire a blocking exclusive flock.
+
+    Returns the open file handle (caller MUST keep it alive until projection
+    completes — flock releases when the fd closes). Returns None under dry_run.
+    """
+    if dry_run:
+        return None
+    _PROJECTION_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    lock_fd = open(_PROJECTION_LOCK_PATH, "w")
+    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+    return lock_fd
+
+
 def _extract_managed_section(source: Path, section_name: str) -> str:
     """Extract content between `<!-- {section_name}-START -->` and `-END` markers.
 
@@ -914,6 +939,25 @@ def run_projection(build_root: Path, icloud_root: Path, dry_run: bool = False,
 
     Returns: `{"projected": int, "skipped_marker_error": int,
                "skipped_icloud_placeholder": int, "created_new": int}`.
+    """
+    # Issue 8: serialize concurrent projections (fswatch+xargs may spawn N
+    # parallel Pythons; we want sequential — each waiter reads disk at acquire
+    # time so all changes propagate). Lock is released when _projection_lock_fd
+    # is closed in the finally block at the end of the function.
+    _projection_lock_fd = _acquire_projection_lock(dry_run)
+    try:
+        return _run_projection_inner(build_root, icloud_root, dry_run, feed_path)
+    finally:
+        if _projection_lock_fd is not None:
+            _projection_lock_fd.close()
+
+
+def _run_projection_inner(build_root: Path, icloud_root: Path, dry_run: bool,
+                          feed_path: Path | None) -> dict:
+    """Implementation of run_projection's projection loop.
+
+    Split out so run_projection can wrap the entire body in a flock (Issue 8)
+    without duplicating the body or growing the function past readability.
     """
     source_dir = build_root / "Clients"
     target_dir = icloud_root / "Clients"
