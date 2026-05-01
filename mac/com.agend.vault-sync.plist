@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agend.vault-sync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/glenr/work/todo-list/mac/vault-sync-watcher.sh</string>
+    </array>
+
+    <key>StandardOutPath</key>
+    <string>/Users/glenr/Library/Logs/agend-vault-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/glenr/Library/Logs/agend-vault-sync.err.log</string>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
