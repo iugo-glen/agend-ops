@@ -188,3 +188,13 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 | 7. Invoice Tracking | v2.0 | 3/3 | Complete | 2026-03-23 |
 | 8. Interactive Dashboard | v2.0 | 4/4 | Complete | 2026-03-25 |
 | 9. Telegram (deferred) | v3.0 | 0/? | Not started | - |
+
+### Phase 10: Obsidian Knowledge Layer — Client Notes: Build a vault-side client knowledge base bridging data/ NDJSON into per-client markdown notes. Backfill from existing triage and task records, auto-append on new triage/task events. Vault uses kepano's obsidian-cli skill where appropriate. Scope: client notes only (defer projects, daily notes, inbox bridge to later phases). Goal: every client has one durable note accumulating context (history, modules, contacts, decisions, recent activity) that's mobile-readable in Obsidian and updates automatically as the system runs.
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 9
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 10 to break down)

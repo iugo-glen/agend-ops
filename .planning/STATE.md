@@ -99,6 +99,10 @@ Recent decisions affecting current work:
 - [Phase 08]: Coolify on remote server 103.249.238.17 with bind mount /opt/agend-ops/data -> /data; AUTH_TRUST_HOST=true for reverse proxy; domain ops.agend.info
 - [Phase 08]: middleware.ts renamed from proxy.ts for Next.js 16 forward compatibility; build-time ARGs required for NextAuth v5 Docker builds
 
+### Roadmap Evolution
+
+- Phase 10 added: Obsidian Knowledge Layer — Client Notes (bridge data/ NDJSON into per-client markdown notes; backfill + auto-append; client notes only, projects/daily/inbox deferred)
+
 ### Pending Todos
 
 None yet.
