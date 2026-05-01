@@ -50,7 +50,7 @@ Deferred beyond v2. Tracked but not in current roadmap.
 
 ### Intelligence
 
-- **INTL-01**: Context accumulation -- client history, past decisions stored in structured files
+- **INTL-01**: Context accumulation -- client history, past decisions stored in structured files (mapped to Phase 10, extended by Phase 11)
 - **INTL-02**: Learning from triage corrections -- improve categorization over time
 
 ### Productivity
@@ -87,11 +87,13 @@ Deferred beyond v2. Tracked but not in current roadmap.
 | DASH-02 | Phase 8 | Complete |
 | DASH-03 | Phase 8 | Complete |
 | DASH-04 | Phase 8 | Complete |
+| INTL-01 | Phase 10 (foundation) + Phase 11 (CM data) | Context locked |
 
 **Coverage:**
 - v2 requirements: 14 total
 - Mapped to phases: 14
 - Unmapped: 0
+- v2 extensions added during milestone: INTL-01 mapped to Phase 10
 
 ---
 *Requirements defined: 2026-03-23*

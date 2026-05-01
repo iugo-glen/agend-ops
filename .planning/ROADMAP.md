@@ -3,7 +3,8 @@
 ## Milestones
 
 - [x] **v1.0 MVP** - Phases 1-4 (shipped 2026-03-23)
-- [ ] **v2.0 Autonomous Operations** - Phases 5-8 (in progress)
+- [ ] **v2.0 Autonomous Operations** - Phases 5-8 (shipped) + Phases 10-12 (in progress: Obsidian knowledge layer)
+- [ ] **v3.0 Mobile Commands** - Phase 9 (Telegram, deferred)
 
 ## Phases
 
@@ -91,7 +92,10 @@ Plans:
 - [ ] **Phase 6: Daily Task Management** - /todo commands, NDJSON storage, briefing integration, and dashboard to-do tab
 - [x] **Phase 7: Invoice Tracking** - /invoice commands, triage pipeline hook, Xero sync, and dashboard invoice tab (completed 2026-03-23)
 - [x] **Phase 8: Interactive Dashboard** - Next.js on Coolify with auth, actions, and live data (completed 2026-03-25)
-- [ ] **Phase 9: Telegram Mobile Commands** - Two-way command execution and approval flow from phone (deferred)
+- [ ] **Phase 9: Telegram Mobile Commands** - Two-way command execution and approval flow from phone (deferred to v3.0)
+- [ ] **Phase 10: Obsidian Knowledge Layer — Client Notes** - Per-client markdown vault sourced from data/ NDJSON; iCloud canonical, Mac Studio launchd daemon projects updates
+- [ ] **Phase 11: Contract Manager Integration** - Seed/refresh frontmatter and log contract events from contracts.agend.info MCP
+- [ ] **Phase 12: Calendar + Drive Activity Enrichment** - Pull meetings + documents matched to clients via existing hardened-workspace MCP
 
 ## Phase Details
 
@@ -175,7 +179,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
+Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 10 -> 11 -> 12 (Phase 9 deferred to v3.0)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -188,32 +192,36 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 | 7. Invoice Tracking | v2.0 | 3/3 | Complete | 2026-03-23 |
 | 8. Interactive Dashboard | v2.0 | 4/4 | Complete | 2026-03-25 |
 | 9. Telegram (deferred) | v3.0 | 0/? | Not started | - |
+| 10. Obsidian Knowledge Layer | v2.0 | 0/? | Context locked | - |
+| 11. Contract Manager Integration | v2.0 | 0/? | Queued | - |
+| 12. Calendar + Drive Enrichment | v2.0 | 0/? | Queued | - |
 
-### Phase 10: Obsidian Knowledge Layer — Client Notes: Build a vault-side client knowledge base bridging data/ NDJSON into per-client markdown notes. Backfill from existing triage and task records, auto-append on new triage/task events. Vault uses kepano's obsidian-cli skill where appropriate. Scope: client notes only (defer projects, daily notes, inbox bridge to later phases). Goal: every client has one durable note accumulating context (history, modules, contacts, decisions, recent activity) that's mobile-readable in Obsidian and updates automatically as the system runs.
+### Phase 10: Obsidian Knowledge Layer — Client Notes
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 9
+**Goal:** Build a per-client markdown knowledge base in an iCloud Obsidian vault. Backfill from `data/` NDJSON history; auto-append on new triage / task / invoice events. Each canonical client gets one durable note accumulating context (status, recent activity, open items) that's mobile-readable on iPhone and updates automatically via a Mac Studio launchd daemon. Scope: client notes only — project portfolio, daily notes, and inbox bridge are deferred.
+**Requirements**: INTL-01 (Context accumulation — client history, past decisions stored in structured files)
+**Depends on:** Phase 8 (action queue + dashboard data layer reused)
 **Plans:** 0 plans
+**Canonical refs:** `.planning/phases/10-obsidian-knowledge-layer-client-notes-build-a-vault-side-cli/10-CONTEXT.md`
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 10 to break down)
 
-### Phase 11: Contract Manager Integration: Seed and refresh client note frontmatter (status, deployed_modules, contract dates, primary_contact) from contract-manager MCP at https://contracts.agend.info/api/mcp. Log contract events (renewals, signings, terminations) to Activity Log. Add Sites and Usage sub-sections. Reconcile invoice data between data/invoices/ and Contract Manager's canonical Invoice model. Depends on Phase 10.
+### Phase 11: Contract Manager Integration
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Integrate the contract-manager MCP (`https://contracts.agend.info/api/mcp`) to seed and refresh client-note frontmatter (`deployed_modules`, `contract_start`, `contract_end`, `primary_contact`, `sites[]`). Log contract events (renewals, signings, terminations) to the Activity Log. Add Sites and Usage sub-sections to client notes. Reconcile invoice data between `data/invoices/` and Contract Manager's canonical Invoice model.
+**Requirements**: TBD (extends INTL-01)
 **Depends on:** Phase 10
 **Plans:** 0 plans
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 11 to break down)
 
-### Phase 12: Calendar and Drive Activity Enrichment: Pull client meetings from Google Calendar (match attendee emails to canonical client_domain) and client documents from Google Drive (match folder/file names to clients) into the Activity Log section of client notes. Uses existing hardened-workspace MCP, no new registrations. Depends on Phases 10 and 11.
+### Phase 12: Calendar + Drive Activity Enrichment
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 11
+**Goal:** Enrich client notes with meetings (Google Calendar, matched by attendee email → canonical `client_domain`) and documents (Google Drive, matched by folder/file name to clients) appended to the Activity Log section. Uses the existing `hardened-workspace` MCP — no new MCP registrations required.
+**Requirements**: TBD (extends INTL-01)
+**Depends on:** Phase 10, Phase 11
 **Plans:** 0 plans
 
 Plans:
