@@ -192,7 +192,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 10 -> 11 -> 12 (Phase 9 def
 | 7. Invoice Tracking | v2.0 | 3/3 | Complete | 2026-03-23 |
 | 8. Interactive Dashboard | v2.0 | 4/4 | Complete | 2026-03-25 |
 | 9. Telegram (deferred) | v3.0 | 0/? | Not started | - |
-| 10. Obsidian Knowledge Layer | v2.0 | 0/5 | Planned | - |
+| 10. Obsidian Knowledge Layer | v2.0 | 1/5 | In Progress|  |
 | 11. Contract Manager Integration | v2.0 | 0/? | Queued | - |
 | 12. Calendar + Drive Enrichment | v2.0 | 0/? | Queued | - |
 
@@ -201,11 +201,11 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 10 -> 11 -> 12 (Phase 9 def
 **Goal:** Build a per-client markdown knowledge base in an iCloud Obsidian vault. Backfill from `data/` NDJSON history; auto-append on new triage / task / invoice events. Each canonical client gets one durable note accumulating context (status, recent activity, open items) that's mobile-readable on iPhone and updates automatically via a Mac Studio launchd daemon. Scope: client notes only — project portfolio, daily notes, and inbox bridge are deferred.
 **Requirements**: INTL-01 (Context accumulation — client history, past decisions stored in structured files)
 **Depends on:** Phase 8 (action queue + dashboard data layer reused)
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 **Canonical refs:** `.planning/phases/10-obsidian-knowledge-layer-client-notes-build-a-vault-side-cli/10-CONTEXT.md`
 
 Plans:
-- [ ] 10-01-PLAN.md — Bootstrap: vault-build/.gitkeep, .gitignore extension, Python test scaffold + dependency manifest
+- [x] 10-01-PLAN.md — Bootstrap: vault-build/.gitkeep, .gitignore extension, Python test scaffold + dependency manifest
 - [ ] 10-02-PLAN.md — vault_writer.py sync engine: slugify, marker splice, atomic write, backfill, incremental, frontmatter round-trip
 - [ ] 10-03-PLAN.md — Coolify integration: /sync-obsidian command + flock wrapper, slash command hooks, push-and-sync annotation
 - [ ] 10-04-PLAN.md — Mac Studio daemon: project-to-icloud mode, LaunchAgent plist, fswatch wrapper, idempotent installer, README
