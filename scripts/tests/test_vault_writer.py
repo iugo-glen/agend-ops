@@ -230,7 +230,6 @@ class TestBackfillIdempotent(unittest.TestCase):
 class TestMain(unittest.TestCase):
     """Issue 1 audit-trail isolation — main() failure-path MUST NOT pollute production data/feed.jsonl."""
 
-    @unittest.skip("Activated in Plan 02 Task 2 once main() supports --feed-path argparse")
     def test_main_failure_path_writes_critical_feed_to_temp(self):
         """Failure-path test: invoke main() with a bogus --data-root so backfill raises;
         the resulting critical feed entry MUST land in a TEMP --feed-path, NEVER in
