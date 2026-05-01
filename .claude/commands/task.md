@@ -173,6 +173,18 @@ jq -r '[.id, .status, (.task_type // "untyped"), .description[:60], .ts[:19]] | 
 
 ---
 
+## Post-Execution: Sync Obsidian vault-build/ (per D-13.2)
+
+After Modes 2 and 3 (which complete tasks), sync the affected client note BEFORE rebuilding dashboard data. Modes 1 (show queue) and 4 (list) are read-only — invoking the wrapper unconditionally is safe because `scripts/sync-obsidian.sh --incremental` short-circuits via its no-op-delta guard when there are no data/ changes (Issue 3). The existing `git add` for the dashboard rebuild is extended below to include `vault-build/`, so any actual sync rides the same commit.
+
+```bash
+bash scripts/sync-obsidian.sh --incremental || true
+```
+
+The trailing `|| true` (H1) ensures a transient sync failure does NOT halt the rest of the task command — dashboard rebuild and commit MUST still run. Failure logs to `data/feed.jsonl` as `system`/`critical` via vault_writer.py main()'s exception handler.
+
+---
+
 ## Post-Execution: Rebuild Dashboard Data (per D-07)
 
 After any mode that modifies data files (Mode 1 and Mode 4 are read-only, skip them), rebuild dashboard JSON:
@@ -183,7 +195,7 @@ bash scripts/build-dashboard-data.sh
 
 Then stage and commit:
 ```bash
-git add docs/feed.json docs/tasks.json docs/triage.json
+git add docs/feed.json docs/tasks.json docs/triage.json vault-build/
 git commit -m "data: rebuild dashboard data after task update"
 ```
 

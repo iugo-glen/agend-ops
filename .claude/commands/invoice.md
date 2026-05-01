@@ -510,13 +510,25 @@ If no project code: omit project code section.
 
 ---
 
+## Post-Mutation: Sync Obsidian vault-build/ (per D-13.3)
+
+After Modes 3 (mark-paid), 4 (xero-sync), 6 (link), and 7 (create), sync the affected client note BEFORE rebuilding dashboard. Read-only modes (e.g. list/show) are safe to call unconditionally — `scripts/sync-obsidian.sh --incremental` short-circuits via its no-op-delta guard when there are no data/ changes (Issue 3). The existing `git add` for the dashboard rebuild is extended below to include `vault-build/`:
+
+```bash
+bash scripts/sync-obsidian.sh --incremental || true
+```
+
+The trailing `|| true` (H1) ensures a transient sync failure does NOT halt the rest of the invoice command — dashboard rebuild and commit MUST still run. Failure logs to `data/feed.jsonl` as `system`/`critical` via vault_writer.py main()'s exception handler.
+
+---
+
 ## Post-Mutation: Dashboard Rebuild
 
 After any mode that modifies data (Modes 3, 4, 6, 7), rebuild dashboard JSON and commit:
 
 ```bash
 bash scripts/build-dashboard-data.sh
-git add docs/feed.json docs/tasks.json docs/triage.json docs/todos.json docs/invoices.json docs/briefing.json data/invoices/ data/feed.jsonl
+git add docs/feed.json docs/tasks.json docs/triage.json docs/todos.json docs/invoices.json docs/briefing.json data/invoices/ data/feed.jsonl vault-build/
 git commit -m "data: rebuild dashboard data after invoice update"
 ```
 
