@@ -22,3 +22,7 @@ __pycache__/
 
 # Node (in case of future tooling)
 node_modules/
+
+# Obsidian vault config (lives in iCloud canonical vault, not in repo)
+# D-17a: vault-build/ rides the transport rail; .obsidian/ workspace state stays out.
+.obsidian/

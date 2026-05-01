@@ -1,0 +1,4 @@
+# Phase 10 — Obsidian sync layer Python dependencies
+# Install on Coolify: pip3 install -r scripts/requirements.txt
+# Install on Mac Studio: pip3 install -r scripts/requirements.txt
+ruamel.yaml>=0.18,<0.19
