@@ -850,14 +850,23 @@ def _update_frontmatter_last_synced(target: Path, last_synced_iso: str) -> None:
 
     Preserves any user-added frontmatter fields Glen made on iPhone (Pattern 6 +
     Pattern 10). Atomic temp+rename+fsync so iCloud's bird/cloudd never sees a partial.
-    Skips silently when the file lacks a recognizable frontmatter block — the projection
-    succeeded; only the timestamp bookkeeping is unavailable.
+
+    Skip paths emit a stderr WARN line (post-review fix: previously silent skips
+    made the trust-signal failure mode invisible to operators):
+      - missing frontmatter delimiter
+      - missing closing frontmatter delimiter
+      - YAML parse failure
+      - frontmatter is not a mapping
     """
     text = target.read_text(encoding="utf-8")
     if not text.startswith("---\n"):
+        print(f"WARN: {target} has no frontmatter; skipping last_synced update",
+              file=sys.stderr)
         return
     end_idx = text.find("\n---\n", 4)
     if end_idx == -1:
+        print(f"WARN: {target} frontmatter missing closing ---; skipping last_synced update",
+              file=sys.stderr)
         return
     fm_text = text[4:end_idx]
     body = text[end_idx + 5:]  # after the closing '---\n'
@@ -865,9 +874,13 @@ def _update_frontmatter_last_synced(target: Path, last_synced_iso: str) -> None:
     yaml = _yaml_instance()
     try:
         data = yaml.load(fm_text)
-    except Exception:
+    except Exception as e:
+        print(f"WARN: {target} frontmatter parse failed ({type(e).__name__}: {e}); "
+              "skipping last_synced update", file=sys.stderr)
         return
     if not isinstance(data, dict):
+        print(f"WARN: {target} frontmatter is not a mapping; skipping last_synced update",
+              file=sys.stderr)
         return
     data["last_synced"] = last_synced_iso
 
@@ -1058,7 +1071,25 @@ def _run_projection_inner(build_root: Path, icloud_root: Path, dry_run: bool,
             continue
 
         if not dry_run:
-            _update_frontmatter_last_synced(target, last_synced)
+            # Post-review fix: per-file try/except so a frontmatter exception on
+            # one target does not halt projection of the remaining files. The
+            # splice succeeded; only the timestamp bookkeeping failed.
+            try:
+                _update_frontmatter_last_synced(target, last_synced)
+            except Exception as e:
+                append_feed_entry(
+                    handle_marker_error_for_feed(
+                        file_path=target,
+                        section="<frontmatter>",
+                        reason=f"frontmatter update failed: {type(e).__name__}: {e}",
+                    ),
+                    feed_path=feed_path,
+                )
+                print(
+                    f"WARN: frontmatter update failed for {target} "
+                    f"({type(e).__name__}: {e}); managed-section splice already succeeded",
+                    file=sys.stderr,
+                )
         stats["projected"] += 1
 
     return stats
