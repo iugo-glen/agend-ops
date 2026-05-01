@@ -161,14 +161,21 @@ Scan Glen's Gmail inbox, categorize emails by priority, generate draft replies f
 
    If no invoice reminders were queued (all duplicates or no invoice items): do not display this section.
 
-6. **Rebuild dashboard data (per D-07):**
+6. **Sync Obsidian vault-build/ (per D-13.1):**
+   After auto-queue is complete and BEFORE rebuilding dashboard data, sync the affected client notes so vault-build/ rides the same atomic git commit as the dashboard rebuild:
+   ```bash
+   bash scripts/sync-obsidian.sh --incremental || true
+   ```
+   The trailing `|| true` is critical (H1): if the wrapper exits non-zero (flock contention, transient I/O error), the dashboard rebuild and commit in step 7 must STILL run — otherwise a transient sync failure would silently halt every triage run. The failure is still recorded to `data/feed.jsonl` by vault_writer.py's main() exception handler. The wrapper applies a no-op-delta guard — if no NDJSON changes have occurred since the last sync, this exits 0 silently and writes nothing (Issue 3). Next sync run catches up on missed deltas via D-14/D-16 idempotency.
+
+7. **Rebuild dashboard data (per D-07):**
    After all triage processing and auto-queue is complete, rebuild dashboard JSON files and commit:
    ```bash
    bash scripts/build-dashboard-data.sh
    ```
    Then stage and commit the updated dashboard data files:
    ```bash
-   git add docs/feed.json docs/tasks.json docs/triage.json docs/briefing.json docs/invoices.json data/invoices/
+   git add docs/feed.json docs/tasks.json docs/triage.json docs/briefing.json docs/invoices.json data/invoices/ vault-build/
    git commit -m "data: rebuild dashboard data after triage"
    ```
    If the commit fails (nothing changed), that is fine -- continue without error.

@@ -26,3 +26,6 @@ node_modules/
 # Obsidian vault config (lives in iCloud canonical vault, not in repo)
 # D-17a: vault-build/ rides the transport rail; .obsidian/ workspace state stays out.
 .obsidian/
+
+# Runtime lock files (created by flock in scripts/sync-obsidian.sh)
+scripts/.vault-sync.lock

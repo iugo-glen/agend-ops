@@ -3,6 +3,7 @@
 # Usage: bash scripts/push-and-sync.sh
 set -euo pipefail
 
+# Note: vault-build/ rides this rail per D-02 — slash commands commit vault-build/ before invoking this script.
 git push
 
 # Pull on Coolify server (background, non-blocking)
