@@ -103,6 +103,8 @@ Recent decisions affecting current work:
 ### Roadmap Evolution
 
 - Phase 10 added: Obsidian Knowledge Layer — Client Notes (bridge data/ NDJSON into per-client markdown notes; backfill + auto-append; client notes only, projects/daily/inbox deferred)
+- Phase 11 added: Contract Manager Integration — pull canonical client/contract/usage data from contracts.agend.info MCP into client note frontmatter and Activity Log
+- Phase 12 added: Calendar and Drive Activity Enrichment — meetings + documents matched to clients via existing hardened-workspace MCP
 
 ### Pending Todos
 

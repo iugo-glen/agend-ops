@@ -198,3 +198,23 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 10 to break down)
+
+### Phase 11: Contract Manager Integration: Seed and refresh client note frontmatter (status, deployed_modules, contract dates, primary_contact) from contract-manager MCP at https://contracts.agend.info/api/mcp. Log contract events (renewals, signings, terminations) to Activity Log. Add Sites and Usage sub-sections. Reconcile invoice data between data/invoices/ and Contract Manager's canonical Invoice model. Depends on Phase 10.
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 10
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 11 to break down)
+
+### Phase 12: Calendar and Drive Activity Enrichment: Pull client meetings from Google Calendar (match attendee emails to canonical client_domain) and client documents from Google Drive (match folder/file names to clients) into the Activity Log section of client notes. Uses existing hardened-workspace MCP, no new registrations. Depends on Phases 10 and 11.
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 11
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 12 to break down)
