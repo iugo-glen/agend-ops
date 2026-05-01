@@ -2,7 +2,7 @@
 domain: atem.org.au
 client_name: Association for Tertiary Education Management
 status: active
-last_synced: '2026-05-01T18:22:56+09:30'
+last_synced: '2026-05-01T18:50:47+09:30'
 ---
 ## Overview
 
