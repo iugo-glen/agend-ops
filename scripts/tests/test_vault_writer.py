@@ -274,5 +274,159 @@ class TestMain(unittest.TestCase):
             self.assertEqual(entry["level"], "critical")
 
 
+class TestProjection(unittest.TestCase):
+    """Plan 04: D-03 projection from vault-build/ to iCloud canonical vault.
+
+    Covers:
+    - Pitfall 6 first-time create
+    - D-08a target-side marker abort
+    - Issue 4 source-side marker abort (parity with target-side)
+    - Issue 5 strict dry-run (no brctl invocation)
+    """
+
+    def test_first_time_creates_new_file(self):
+        """Pitfall 6: first projection of a new client — write full template, skip marker check."""
+        from scripts.lib.vault_writer import run_projection
+        with tempfile.TemporaryDirectory() as build, \
+             tempfile.TemporaryDirectory() as icloud, \
+             tempfile.TemporaryDirectory() as feed_dir:
+            source_dir = Path(build) / "Clients"
+            source_dir.mkdir()
+            source = source_dir / "test-client.md"
+            source.write_text(
+                "---\ndomain: test.example\nclient_name: Test\nstatus: active\n"
+                "last_synced: 2026-05-01T10:30:00+10:30\n---\n\n"
+                "## Overview\n\n_x_\n\n"
+                "<!-- OPEN-ITEMS-START -->\n## Open Items\n\n_(none)_\n<!-- OPEN-ITEMS-END -->\n\n"
+                "<!-- ACTIVITY-LOG-START -->\n## Activity Log\n\n_x_\n<!-- ACTIVITY-LOG-END -->\n\n"
+                "## Decisions\n\n_x_\n",
+                encoding="utf-8",
+            )
+            feed_path = Path(feed_dir) / "feed.jsonl"
+            stats = run_projection(Path(build), Path(icloud),
+                                   dry_run=False, feed_path=feed_path)
+            self.assertEqual(stats["created_new"], 1)
+            self.assertTrue((Path(icloud) / "Clients" / "test-client.md").exists())
+
+    def test_existing_target_marker_error_aborts(self):
+        """D-08a: malformed markers in iCloud target ABORT and log critical, no overwrite."""
+        from scripts.lib.vault_writer import run_projection
+        with tempfile.TemporaryDirectory() as build, \
+             tempfile.TemporaryDirectory() as icloud, \
+             tempfile.TemporaryDirectory() as feed_dir:
+            # Set up build/Clients/foo.md with valid markers
+            source_dir = Path(build) / "Clients"
+            source_dir.mkdir(parents=True)
+            source = source_dir / "foo.md"
+            source.write_text(
+                "<!-- ACTIVITY-LOG-START -->\nnew-content\n<!-- ACTIVITY-LOG-END -->\n"
+                "<!-- OPEN-ITEMS-START -->\nopen\n<!-- OPEN-ITEMS-END -->\n",
+                encoding="utf-8",
+            )
+            # Set up iCloud/Clients/foo.md with MISSING ACTIVITY-LOG-END (corrupt)
+            target_dir = Path(icloud) / "Clients"
+            target_dir.mkdir(parents=True)
+            target = target_dir / "foo.md"
+            target.write_text(
+                "## Overview\nuser content\n\n"
+                "<!-- OPEN-ITEMS-START -->\nold-open\n<!-- OPEN-ITEMS-END -->\n"
+                "<!-- ACTIVITY-LOG-START -->\nold\n",  # missing END
+                encoding="utf-8",
+            )
+
+            feed_path = Path(feed_dir) / "feed.jsonl"
+            stats = run_projection(Path(build), Path(icloud),
+                                   dry_run=False, feed_path=feed_path)
+            self.assertGreaterEqual(stats["skipped_marker_error"], 1)
+            # Verify user content was preserved (NOT overwritten)
+            self.assertIn("user content", target.read_text(encoding="utf-8"))
+            # Verify a critical feed entry was written to the temp feed_path
+            self.assertTrue(feed_path.exists())
+
+    def test_corrupt_source_marker_aborts_with_critical_feed(self):
+        """Issue 4: source-side marker corruption is treated with the same severity as
+        target-side. A malformed <!-- ACTIVITY-LOG-START --> block in
+        vault-build/Clients/foo.md must abort that file's projection and write a
+        critical feed entry to the threaded feed_path.
+        """
+        import json as _json
+        from scripts.lib.vault_writer import run_projection
+        with tempfile.TemporaryDirectory() as build, \
+             tempfile.TemporaryDirectory() as icloud, \
+             tempfile.TemporaryDirectory() as feed_dir:
+            source_dir = Path(build) / "Clients"
+            source_dir.mkdir(parents=True)
+            source = source_dir / "foo.md"
+            # SOURCE corrupted: TWO ACTIVITY-LOG-START markers and ONE END.
+            source.write_text(
+                "<!-- ACTIVITY-LOG-START -->\nfirst\n<!-- ACTIVITY-LOG-START -->\n"
+                "second\n<!-- ACTIVITY-LOG-END -->\n"
+                "<!-- OPEN-ITEMS-START -->\nopen\n<!-- OPEN-ITEMS-END -->\n",
+                encoding="utf-8",
+            )
+            # iCloud target exists with valid markers (so source is the broken side)
+            target_dir = Path(icloud) / "Clients"
+            target_dir.mkdir(parents=True)
+            target = target_dir / "foo.md"
+            target.write_text(
+                "<!-- OPEN-ITEMS-START -->\nold-open\n<!-- OPEN-ITEMS-END -->\n"
+                "<!-- ACTIVITY-LOG-START -->\nold\n<!-- ACTIVITY-LOG-END -->\n",
+                encoding="utf-8",
+            )
+            feed_path = Path(feed_dir) / "feed.jsonl"
+            stats = run_projection(Path(build), Path(icloud),
+                                   dry_run=False, feed_path=feed_path)
+            # File aborted — counted under skipped_marker_error
+            self.assertGreaterEqual(stats["skipped_marker_error"], 1)
+            # Critical feed entry written to the temp feed_path
+            self.assertTrue(feed_path.exists())
+            lines = feed_path.read_text(encoding="utf-8").strip().splitlines()
+            self.assertGreaterEqual(len(lines), 1)
+            entry = _json.loads(lines[-1])
+            self.assertEqual(entry["type"], "system")
+            self.assertEqual(entry["level"], "critical")
+            # Source path appears in the entry (not target)
+            self.assertIn("foo.md", entry["details"]["file"])
+
+    def test_dry_run_does_not_invoke_brctl(self):
+        """Issue 5: dry_run is STRICTLY read-only — no brctl subprocess invocations."""
+        from unittest import mock
+        from scripts.lib.vault_writer import run_projection
+        with tempfile.TemporaryDirectory() as build, \
+             tempfile.TemporaryDirectory() as icloud, \
+             tempfile.TemporaryDirectory() as feed_dir:
+            source_dir = Path(build) / "Clients"
+            source_dir.mkdir(parents=True)
+            source = source_dir / "foo.md"
+            source.write_text(
+                "<!-- OPEN-ITEMS-START -->\nopen\n<!-- OPEN-ITEMS-END -->\n"
+                "<!-- ACTIVITY-LOG-START -->\nnew\n<!-- ACTIVITY-LOG-END -->\n",
+                encoding="utf-8",
+            )
+            # Create an .icloud placeholder in icloud/Clients to simulate
+            # iCloud Optimize-Mac-Storage. Without dry_run, run_projection would
+            # invoke brctl. With dry_run, it MUST NOT.
+            target_dir = Path(icloud) / "Clients"
+            target_dir.mkdir(parents=True)
+            placeholder = target_dir / ".foo.md.icloud"
+            placeholder.write_text("", encoding="utf-8")
+
+            feed_path = Path(feed_dir) / "feed.jsonl"
+
+            # Patch subprocess.run inside the vault_writer module so we can assert
+            # it is never called during a dry-run projection.
+            with mock.patch("scripts.lib.vault_writer.subprocess.run") as mock_run:
+                run_projection(Path(build), Path(icloud),
+                               dry_run=True, feed_path=feed_path)
+                # Issue 5: brctl MUST NOT have been invoked.
+                for call in mock_run.call_args_list:
+                    # call.args[0] is the argv list passed to subprocess.run.
+                    argv = call.args[0] if call.args else []
+                    self.assertFalse(
+                        argv and argv[0] == "brctl",
+                        f"brctl invoked under dry_run: {argv}",
+                    )
+
+
 if __name__ == "__main__":
     unittest.main()

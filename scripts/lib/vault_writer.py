@@ -29,8 +29,10 @@ import collections
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
+import time
 import traceback
 import unicodedata
 from datetime import datetime
@@ -756,6 +758,268 @@ def run_incremental(data_root: Path, build_root: Path, record_type: str = "all",
     return run_backfill(data_root, build_root, dry_run=dry_run, feed_path=feed_path)
 
 
+# =========================================================================
+# Plan 04: project-to-icloud mode (D-03 Mac Studio daemon support)
+# =========================================================================
+
+
+def _extract_managed_section(source: Path, section_name: str) -> str:
+    """Extract content between `<!-- {section_name}-START -->` and `-END` markers.
+
+    Issue 4: raises MarkerError on missing/duplicate/malformed source markers — this is
+    treated with the same severity as target-side corruption. The caller (run_projection)
+    catches MarkerError and writes a critical feed entry, aborts the file, continues.
+    """
+    text = source.read_text(encoding="utf-8")
+    start_re = re.compile(rf"<!--\s*{re.escape(section_name)}-START\s*-->")
+    end_re = re.compile(rf"<!--\s*{re.escape(section_name)}-END\s*-->")
+    starts = list(start_re.finditer(text))
+    ends = list(end_re.finditer(text))
+    if len(starts) != 1 or len(ends) != 1:
+        raise MarkerError(
+            f"{source}: source missing/duplicated {section_name} markers — "
+            f"got {len(starts)} starts, {len(ends)} ends (Issue 4)"
+        )
+    if starts[0].end() > ends[0].start():
+        raise MarkerError(
+            f"{source}: source {section_name}-END appears before -START (Issue 4)"
+        )
+    return text[starts[0].end():ends[0].start()].strip("\n")
+
+
+def _handle_icloud_placeholder(target: Path, max_retries: int = 3,
+                               delay_s: float = 2.0) -> bool:
+    """If target has a `.icloud` placeholder sibling, attempt `brctl download`.
+
+    Returns True when the file is materialized (or was never a placeholder), False after
+    all retries fail.
+
+    Issue 5: this function MUST NOT be invoked under dry_run. The caller is responsible
+    for the dry_run guard; the run_projection orchestrator gates the call behind
+    `if not dry_run:` so brctl is never spawned in dry-run mode.
+    """
+    placeholder = target.parent / f".{target.name}.icloud"
+    if not placeholder.exists() and target.exists():
+        return True  # No placeholder, file present — nothing to do
+    if not placeholder.exists():
+        return True  # Neither placeholder nor target — caller will create new
+    for _attempt in range(max_retries):
+        try:
+            subprocess.run(
+                ["brctl", "download", str(target.parent)],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+            time.sleep(delay_s)
+            if target.exists() and not placeholder.exists():
+                return True
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass  # brctl not available or failed — try again
+        time.sleep(delay_s)
+    return False
+
+
+def _update_frontmatter_last_synced(target: Path, last_synced_iso: str) -> None:
+    """Round-trip target's frontmatter via ruamel.yaml, updating only `last_synced`.
+
+    Preserves any user-added frontmatter fields Glen made on iPhone (Pattern 6 +
+    Pattern 10). Atomic temp+rename+fsync so iCloud's bird/cloudd never sees a partial.
+    Skips silently when the file lacks a recognizable frontmatter block — the projection
+    succeeded; only the timestamp bookkeeping is unavailable.
+    """
+    text = target.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        return
+    end_idx = text.find("\n---\n", 4)
+    if end_idx == -1:
+        return
+    fm_text = text[4:end_idx]
+    body = text[end_idx + 5:]  # after the closing '---\n'
+
+    yaml = _yaml_instance()
+    try:
+        data = yaml.load(fm_text)
+    except Exception:
+        return
+    if not isinstance(data, dict):
+        return
+    data["last_synced"] = last_synced_iso
+
+    buf = StringIO()
+    yaml.dump(data, buf)
+    new_text = f"---\n{buf.getvalue()}---\n{body}"
+
+    dir_path = target.parent
+    fd, tmp_path = tempfile.mkstemp(dir=dir_path, prefix=f".{target.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(new_text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, target)
+        dir_fd = os.open(dir_path, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        raise
+
+
+def run_projection(build_root: Path, icloud_root: Path, dry_run: bool = False,
+                   feed_path: Path | None = None) -> dict:
+    """D-03 + Pattern 4: project managed sections from vault-build/ to iCloud canonical vault.
+
+    Args:
+        build_root: server-transport root; sources at `<build_root>/Clients/*.md`.
+        icloud_root: canonical Obsidian vault root (Mac Studio iCloud path); targets at
+            `<icloud_root>/Clients/<basename>`.
+        dry_run: STRICTLY read-only (Issue 5). When True:
+            - no brctl subprocess invocations (`_handle_icloud_placeholder` is gated)
+            - no file writes (no `_atomic_write`, `replace_managed_section`, or
+              `_update_frontmatter_last_synced` calls)
+            - no feed-entry appends
+            Dry-run is observable via printed `[dry-run] would …` lines only.
+        feed_path: where critical feed entries land on failure. Threaded from main()
+            (default at the CLI boundary: `<data_root>/feed.jsonl`). Issue 6: do NOT
+            recompute from `build_root.parent` — that's fragile under non-default
+            `--build-root` values. When None (library callers without main()), defaults
+            to `Path("data/feed.jsonl")` relative to cwd.
+
+    Algorithm (Issue 4 + Issue 5 + Pitfall 6 + D-08a):
+        1. List `build_root/Clients/*.md`.
+        2. For each source file:
+           a. SOURCE marker integrity check via `_extract_managed_section`. On missing/
+              duplicate/malformed source markers: raise MarkerError → catch → write
+              critical feed entry → abort this file → continue (Issue 4).
+           b. If `<target>.icloud` placeholder exists AND not dry_run: brctl download
+              with 3 retries × 2s. dry_run skips this entirely (Issue 5).
+           c. If target does not exist AND not dry_run: write full source as new file
+              (Pitfall 6). dry_run prints "[dry-run] would create new" and continues.
+           d. Else for each MANAGED_SECTIONS name:
+              - Extract source content via `_extract_managed_section`
+              - If not dry_run: splice into target via `replace_managed_section`
+              - If dry_run: print "[dry-run] would splice {section} into {target}"
+              - On TARGET MarkerError: log critical to feed_path, skip remaining sections.
+        3. After successful projection AND not dry_run, update target's frontmatter
+           `last_synced` (preserves user-added fields per Pattern 6 + Pattern 10).
+        4. Aborted files do NOT get `last_synced` touched (Pitfall 1: stale timestamp =
+           the signal Glen sees that something is wrong).
+
+    Returns: `{"projected": int, "skipped_marker_error": int,
+               "skipped_icloud_placeholder": int, "created_new": int}`.
+    """
+    source_dir = build_root / "Clients"
+    target_dir = icloud_root / "Clients"
+    if not dry_run:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    last_synced = now_iso_with_offset()
+
+    # Issue 6: feed_path is threaded in by main(). When called as a library
+    # (e.g. from tests), the caller supplies an explicit Path. Library default
+    # falls back to "data/feed.jsonl" relative to cwd, but the canonical CLI
+    # path is main()'s already-resolved value.
+    if feed_path is None:
+        feed_path = Path("data") / "feed.jsonl"
+
+    stats = {"projected": 0, "skipped_marker_error": 0,
+             "skipped_icloud_placeholder": 0, "created_new": 0}
+
+    if not source_dir.exists():
+        return stats
+
+    for source in sorted(source_dir.glob("*.md")):
+        target = target_dir / source.name
+
+        # Issue 5: brctl placeholder handling MUST NOT run under dry_run.
+        if not dry_run:
+            if not _handle_icloud_placeholder(target):
+                stats["skipped_icloud_placeholder"] += 1
+                append_feed_entry(
+                    handle_marker_error_for_feed(
+                        file_path=target,
+                        section="<icloud-placeholder>",
+                        reason="brctl download failed after 3 retries",
+                    ),
+                    feed_path=feed_path,
+                )
+                continue
+
+        # Pitfall 6: first-time write — copy full source to target
+        if not target.exists():
+            if dry_run:
+                print(f"[dry-run] would create new {target}")
+            else:
+                _atomic_write(target, source.read_text(encoding="utf-8"))
+            stats["created_new"] += 1
+            continue
+
+        # Existing target — splice each managed section
+        file_aborted = False
+        for section in MANAGED_SECTIONS:
+            # Issue 4: source-side MarkerError is caught the same way as target-side
+            try:
+                content = _extract_managed_section(source, section)
+            except MarkerError as e:
+                if not dry_run:
+                    append_feed_entry(
+                        handle_marker_error_for_feed(
+                            file_path=source,
+                            section=section,
+                            reason=f"source marker error: {e}",
+                        ),
+                        feed_path=feed_path,
+                    )
+                print(
+                    f"ABORT source marker error: {source} ({section}) — {e}",
+                    file=sys.stderr,
+                )
+                stats["skipped_marker_error"] += 1
+                file_aborted = True
+                break
+
+            if dry_run:
+                print(f"[dry-run] would splice {section} into {target}")
+                continue
+
+            try:
+                replace_managed_section(target, section, content)
+            except MarkerError as e:
+                # D-08a: ABORT this file's remaining updates and log critical.
+                append_feed_entry(
+                    handle_marker_error_for_feed(
+                        file_path=target,
+                        section=section,
+                        reason=f"target marker error: {e}",
+                    ),
+                    feed_path=feed_path,
+                )
+                print(
+                    f"ABORT target marker error: {target} ({section}) — {e}",
+                    file=sys.stderr,
+                )
+                stats["skipped_marker_error"] += 1
+                file_aborted = True
+                break  # Skip remaining sections for this file
+
+        if file_aborted:
+            # Pitfall 1: do NOT update last_synced on aborted files; the stale
+            # timestamp is the signal Glen sees that something is wrong.
+            continue
+
+        if not dry_run:
+            _update_frontmatter_last_synced(target, last_synced)
+        stats["projected"] += 1
+
+    return stats
+
+
 # CLI entry point (Issue 1 + Issue 6 — --feed-path threading) -------------
 
 def main() -> None:
@@ -769,9 +1033,23 @@ def main() -> None:
     share the exact same value (no accidental hardcode of `data/feed.jsonl`).
     """
     p = argparse.ArgumentParser(prog="vault_writer")
-    p.add_argument("--mode", choices=["backfill", "incremental"], required=True)
+    p.add_argument(
+        "--mode",
+        choices=["backfill", "incremental", "project-to-icloud"],
+        required=True,
+    )
     p.add_argument("--data-root", default=Path("data"), type=Path)
     p.add_argument("--build-root", default=Path("vault-build"), type=Path)
+    p.add_argument(
+        "--icloud-root",
+        type=Path,
+        default=Path.home() / "Library" / "Mobile Documents"
+                              / "iCloud~md~obsidian" / "Documents" / "AgendOps",
+        help=(
+            "iCloud canonical Obsidian vault root. Default: "
+            "~/Library/Mobile Documents/iCloud~md~obsidian/Documents/AgendOps"
+        ),
+    )
     p.add_argument("--record-type", choices=["triage", "task", "invoice", "all"], default="all")
     p.add_argument("--record-id", default=None)  # accepted for hook parity; unused in v1
     p.add_argument("--dry-run", action="store_true")
@@ -795,6 +1073,12 @@ def main() -> None:
         if args.mode == "backfill":
             stats = run_backfill(args.data_root, args.build_root,
                                  dry_run=args.dry_run, feed_path=feed_path)
+        elif args.mode == "project-to-icloud":
+            # Issue 6: pass the same threaded feed_path; do NOT recompute inside
+            # run_projection from build_root.parent (fragile under non-default
+            # --build-root values).
+            stats = run_projection(args.build_root, args.icloud_root,
+                                   dry_run=args.dry_run, feed_path=feed_path)
         else:
             stats = run_incremental(args.data_root, args.build_root,
                                     record_type=args.record_type,
@@ -834,7 +1118,7 @@ __all__ = [
     "load_clients", "stream_ndjson", "d10_triage_filter",
     "render_open_items", "render_activity_log", "render_frontmatter",
     "render_unknown_note", "build_note_initial_markdown",
-    "run_backfill", "run_incremental", "main",
+    "run_backfill", "run_incremental", "run_projection", "main",
 ]
 
 
