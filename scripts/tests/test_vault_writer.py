@@ -388,6 +388,75 @@ class TestProjection(unittest.TestCase):
             # Source path appears in the entry (not target)
             self.assertIn("foo.md", entry["details"]["file"])
 
+    def test_second_projection_preserves_user_content(self):
+        """Regression (post-review fix): Glen's user-edited Overview and Decisions
+        in the iCloud target MUST survive a subsequent projection from vault-build/.
+        Only the managed sections (OPEN-ITEMS, ACTIVITY-LOG) should change.
+
+        Without this test, a future refactor of run_projection that accidentally
+        rewrites the whole file (e.g. always taking the source-as-truth path
+        instead of just splicing managed sections) would silently destroy Glen's
+        notes — the highest-impact data-loss risk in Phase 10.
+        """
+        from scripts.lib.vault_writer import run_projection
+        with tempfile.TemporaryDirectory() as build, \
+             tempfile.TemporaryDirectory() as icloud, \
+             tempfile.TemporaryDirectory() as feed_dir:
+            # vault-build source: regenerated-from-full template content
+            source_dir = Path(build) / "Clients"
+            source_dir.mkdir()
+            source = source_dir / "test-client.md"
+            source.write_text(
+                "---\ndomain: test.example\nclient_name: Test\nstatus: active\n"
+                "last_synced: 2026-05-01T10:30:00+10:30\n---\n\n"
+                "## Overview\n\n_template Overview placeholder_\n\n"
+                "<!-- OPEN-ITEMS-START -->\nUPDATED-OPEN-ITEMS\n<!-- OPEN-ITEMS-END -->\n\n"
+                "<!-- ACTIVITY-LOG-START -->\nUPDATED-ACTIVITY-LOG\n<!-- ACTIVITY-LOG-END -->\n\n"
+                "## Decisions\n\n_template Decisions placeholder_\n",
+                encoding="utf-8",
+            )
+            # iCloud target: Glen has heavily edited Overview and Decisions on iPhone
+            target_dir = Path(icloud) / "Clients"
+            target_dir.mkdir()
+            target = target_dir / "test-client.md"
+            target.write_text(
+                "---\ndomain: test.example\nclient_name: Test\nstatus: active\n"
+                "last_synced: 2026-04-30T10:30:00+10:30\n"
+                "glen_added_field: my-custom-value\n---\n\n"
+                "## Overview\n\n"
+                "GLEN-CUSTOM-OVERVIEW: annual contract renewed Mar 2026, "
+                "primary contact Sarah K., billing on net-30.\n\n"
+                "<!-- OPEN-ITEMS-START -->\nold-open-items-content\n<!-- OPEN-ITEMS-END -->\n\n"
+                "<!-- ACTIVITY-LOG-START -->\nold-activity-log-content\n<!-- ACTIVITY-LOG-END -->\n\n"
+                "## Decisions\n\n"
+                "GLEN-CUSTOM-DECISION: moved to monthly invoicing 2026-04 per Sarah's request.\n",
+                encoding="utf-8",
+            )
+            feed_path = Path(feed_dir) / "feed.jsonl"
+            stats = run_projection(Path(build), Path(icloud),
+                                   dry_run=False, feed_path=feed_path)
+            self.assertEqual(stats["projected"], 1)
+            self.assertEqual(stats["created_new"], 0)
+            self.assertEqual(stats["skipped_marker_error"], 0)
+
+            after = target.read_text(encoding="utf-8")
+            # Glen's user-edited Overview and Decisions MUST be preserved verbatim
+            self.assertIn("GLEN-CUSTOM-OVERVIEW", after)
+            self.assertIn("annual contract renewed Mar 2026", after)
+            self.assertIn("primary contact Sarah K.", after)
+            self.assertIn("GLEN-CUSTOM-DECISION", after)
+            self.assertIn("moved to monthly invoicing 2026-04", after)
+            # Glen's custom frontmatter field MUST survive ruamel round-trip
+            self.assertIn("glen_added_field: my-custom-value", after)
+            # Managed sections MUST be replaced with source content
+            self.assertIn("UPDATED-OPEN-ITEMS", after)
+            self.assertIn("UPDATED-ACTIVITY-LOG", after)
+            self.assertNotIn("old-open-items-content", after)
+            self.assertNotIn("old-activity-log-content", after)
+            # The template-only Overview text from source MUST NOT have been written to target
+            self.assertNotIn("_template Overview placeholder_", after)
+            self.assertNotIn("_template Decisions placeholder_", after)
+
     def test_dry_run_does_not_invoke_brctl(self):
         """Issue 5: dry_run is STRICTLY read-only — no brctl subprocess invocations."""
         from unittest import mock
