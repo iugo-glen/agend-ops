@@ -556,6 +556,97 @@ def render_open_items(slug: str, todos: list, tasks: list, clients: dict[str, di
     return "\n".join(bullets)
 
 
+# Phase 11 managed-section renderers ---------------------------------------
+
+def render_cm_todos(cm_extra: dict | None) -> str:
+    """Render the CM-TODOS managed section body (D-B3).
+
+    Args:
+        cm_extra: dict produced by cm_client.cm_summary_to_frontmatter_extra (or None
+            if CM was unreachable AND cache was empty/unreadable).
+
+    Returns markdown with one of three shapes:
+      1. cm_extra is None → '_(CM data unavailable; will refresh next sync)_'
+      2. cm_extra has empty values for any of the 4 monitored keys → bullet list
+         where each missing key is one bullet
+      3. cm_extra has all 4 keys populated → '_(no missing CM data)_'
+
+    `sites` is NOT monitored: per D-C2-REVISED, sites is permanently `[]` and that's
+    the steady state, not a "missing" condition.
+    """
+    if cm_extra is None:
+        return "_(CM data unavailable; will refresh next sync)_"
+
+    # Fixed display order — keep stable for idempotent regenerate-from-full.
+    monitored_keys = (
+        ("contract_start", "Contract start date"),
+        ("contract_end",   "Contract end date"),
+        ("primary_contact", "Primary contact"),
+        ("deployed_modules", "Deployed modules (derived from contract names)"),
+    )
+
+    bullets: list[str] = []
+    for key, label in monitored_keys:
+        val = cm_extra.get(key)
+        if val == "" or val == [] or val is None:
+            bullets.append(f"- `{key}` — set in [Contract Manager](https://contracts.agend.info/) ({label})")
+
+    if not bullets:
+        return "_(no missing CM data)_"
+    return "\n".join(bullets)
+
+
+def render_usage(sla_result: dict | None, client_name: str) -> str:
+    """Render the USAGE managed section body (D-C3-REVISED — uses get_sla_status).
+
+    Args:
+        sla_result: dict produced by `cm_client.call_with_retry("get_sla_status", ...)`
+            structuredContent (or None if CM was unreachable AND cache was empty).
+        client_name: the human-readable client name; used to filter `projects[]` by
+            `clientName` field via case-insensitive substring match.
+
+    Returns markdown:
+      - When sla_result is None or no projects match: '_(no usage data)_'
+      - Otherwise a bullet list, one bullet per project, with hours-vs-budget summary.
+    """
+    if sla_result is None:
+        return "_(no usage data)_"
+
+    projects = sla_result.get("projects", []) or []
+    if not projects:
+        return "_(no usage data)_"
+
+    name_lower = (client_name or "").lower()
+    matched = [
+        p for p in projects
+        if name_lower and name_lower in (p.get("clientName") or "").lower()
+    ]
+    if not matched:
+        return "_(no usage data)_"
+
+    def _fmt(n):
+        if n is None:
+            return "?"
+        if isinstance(n, float) and n.is_integer():
+            return str(int(n))
+        return str(n)
+
+    bullets: list[str] = []
+    for proj in matched:
+        proj_name = proj.get("projectName") or "(unnamed project)"
+        logged = proj.get("hoursLogged")
+        budgeted = proj.get("hoursBudgeted")
+        pct = proj.get("percentConsumed")
+        status = proj.get("status") or ""
+
+        line = f"- **{proj_name}** — {_fmt(logged)} hrs of {_fmt(budgeted)} ({_fmt(pct)}%)"
+        if status:
+            line += f" [{status}]"
+        bullets.append(line)
+
+    return "\n".join(bullets)
+
+
 def render_activity_log(events: list) -> str:
     """Render newest-first activity log via `render_log_line`.
 
@@ -1345,6 +1436,7 @@ __all__ = [
     "EMOJI_BY_KIND", "MANAGED_SECTIONS", "TS_PATTERN",
     "load_clients", "stream_ndjson", "d10_triage_filter",
     "render_open_items", "render_activity_log", "render_frontmatter",
+    "render_cm_todos", "render_usage",
     "render_unknown_note", "build_note_initial_markdown",
     "run_backfill", "run_incremental", "run_projection",
     "run_map_cm_clients",
