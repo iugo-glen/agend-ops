@@ -2,11 +2,18 @@
 domain: otaus.com.au
 client_name: Occupational Therapy Australia
 status: active
-last_synced: '2026-05-02T18:33:04+09:30'
+last_synced: '2026-05-03T06:43:34+10:00'
 ---
 ## Overview
 
 _No notes yet — replace this line with relationship context._
+
+<!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
+<!-- CM-TODOS-START -->
+## TODO: Missing CM Data
+
+_(CM data unavailable; will refresh next sync)_
+<!-- CM-TODOS-END -->
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
 <!-- OPEN-ITEMS-START -->
@@ -14,6 +21,13 @@ _No notes yet — replace this line with relationship context._
 
 _(none)_
 <!-- OPEN-ITEMS-END -->
+
+<!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
+<!-- USAGE-START -->
+## Usage
+
+_(no usage data)_
+<!-- USAGE-END -->
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
 <!-- ACTIVITY-LOG-START -->

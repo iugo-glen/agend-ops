@@ -2,11 +2,18 @@
 domain: ''
 client_name: Unknown
 status: unknown
-last_synced: '2026-05-02T18:33:04+09:30'
+last_synced: '2026-05-03T06:43:34+10:00'
 ---
 ## Overview
 
 _Auto-generated bucket of unmatched records. Surfaced for cleanup per D-06a._
+
+<!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
+<!-- CM-TODOS-START -->
+## TODO: Missing CM Data
+
+_(no missing CM data)_
+<!-- CM-TODOS-END -->
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
 <!-- OPEN-ITEMS-START -->
@@ -16,11 +23,26 @@ _(none)_
 <!-- OPEN-ITEMS-END -->
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
+<!-- USAGE-START -->
+## Usage
+
+_(no usage data)_
+<!-- USAGE-END -->
+
+<!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
 <!-- ACTIVITY-LOG-START -->
 ## Activity Log
 
 ### Group: Australian Human Resources Institute (1 records)
 ### [2026-03-23 20:23] ✅ task-2026-03-23-018 pending — Kick off AHRI Agend implementation project onboarding (AHRI accepted proposal...
+
+### Group: Australian Human Resources Institute (AHRI) (1 records)
+### [2026-03-25 00:00] 💰 INV-0758 overdue (24d) — $1194
+> source: contract-manager · severity: warning
+
+### Group: Australian Institute of Quantity Surveyors (AIQS) (1 records)
+### [2026-04-01 00:00] 💰 INV-0779 overdue (17d) — $142.5
+> source: contract-manager · severity: warning
 
 ### Group: Australian Veterinary Association (4 records)
 ### [2026-03-23 12:44] ✅ task-2026-03-23-007 pending — Kick off AVA Agend Implementation project onboarding (from Ignition @ Austral...
@@ -34,6 +56,23 @@ _(none)_
 ### [2026-03-23 01:39] 📧 Congratulations! Australian Veterinary Association (AVA) has accepted your proposal (#PROP-0320)
 > urgent · contract · Kick off AVA Agend Implementation project onboarding
 > [Open thread](https://mail.google.com/mail/u/0/#inbox/19d18594d0474791)
+
+### Group: Australian Veterinary Association (AVA) (1 records)
+### [2026-04-01 00:00] 💰 INV-0783 overdue (17d) — $7267.5
+> source: contract-manager · severity: warning
+
+### Group: Independent Schools of NSW Ltd (ISNSW) (4 records)
+### [2026-04-01 00:00] 💰 INV-0794 overdue (17d) — $516
+> source: contract-manager · severity: warning
+
+### [2026-04-01 00:00] 💰 INV-0787 overdue (17d) — $2614.5
+> source: contract-manager · severity: warning
+
+### [2026-03-25 00:00] 💰 INV-0756 overdue (24d) — $1295.8
+> source: contract-manager · severity: warning
+
+### [2026-03-25 00:00] 💰 INV-0750 overdue (24d) — $3704
+> source: contract-manager · severity: warning
 
 ### Group: NIETA (2 records)
 ### [2026-03-22 23:27] 📧 Re: Couple of things
@@ -56,6 +95,22 @@ _(none)_
 
 ### [2026-03-23 12:27] ✅ task-2026-03-23-001 completed — Summarize the PCA SOW review email from Greg Davenport
 > Document summary: PCA Shopping Centre Online SOW review thread -- 4-email thread with background reports and annotated SOW for Tuesday meeting
+
+### Group: TACTIC (1 records)
+### [2026-04-01 00:00] 💰 INV-0789 overdue (17d) — $1178
+> source: contract-manager · severity: warning
+
+### Group: Victorian Association of Secondary School Prinicpals (VASSP) (1 records)
+### [2026-04-01 00:00] 💰 INV-0790 overdue (17d) — $1115.3
+> source: contract-manager · severity: warning
+
+### Group: Visual Media Association (VMA) (1 records)
+### [2026-04-01 00:00] 💰 INV-0782 overdue (17d) — $8061.7
+> source: contract-manager · severity: warning
+
+### Group: Waste Management and Resource Recovery Association of Australia (WMRR) (1 records)
+### [2026-03-25 00:00] 💰 INV-0757 overdue (24d) — $1219.8
+> source: contract-manager · severity: warning
 
 ### Group: dca.org.au (1 records)
 ### [2026-03-23 05:14] 📧 RE: Agend upcoming products

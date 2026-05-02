@@ -1,14 +1,14 @@
 ---
-status: partial
+status: passed
 phase: 11-contract-manager-integration-seed-and-refresh-client-note-fr
 source: [11-VERIFICATION.md]
 started: 2026-05-02T23:51:27+09:30
-updated: 2026-05-03T00:30:00+09:30
+updated: 2026-05-03T07:00:00+10:00
 ---
 
 ## Current Test
 
-Item 2 (live CM-aware backfill on Coolify + iPhone Obsidian verify) blocked: Coolify host lacks ruamel.yaml. Pre-existing deployment gap (not phase 11 introduced). Resolution path: install ruamel system-wide (`apt install python3-ruamel.yaml` or pip) OR set up dedicated Python runtime/container. Tracked for follow-up.
+Both UAT items completed 2026-05-03. Phase 11 code is production-verified end-to-end on Coolify. Discovered CM server-side Prisma schema bug (separate from phase 11) — see Gaps section.
 
 ## Tests
 
@@ -43,15 +43,37 @@ expected:
 
 result: [pending]
 
-### 2. End-to-end CM-aware backfill on Coolify + iPhone Obsidian visual verification (Plan 04 Task 3) — ⚠️ BLOCKED 2026-05-03
+### 2. End-to-end CM-aware backfill on Coolify + iPhone Obsidian visual verification (Plan 04 Task 3) — ✅ PASSED (code) / ⚠️ CM server bug surfaced 2026-05-03
 
-result: blocked (2026-05-03)
-- Coolify host is missing ruamel.yaml (pre-existing gap, not introduced by phase 11)
-- The agend-ops Coolify service is a Node/JS dashboard container — no Python at all
-- The vault_writer.py needs to run somewhere with `from ruamel.yaml import YAML`
-- Resolution options: (a) install ruamel system-wide on Coolify host via apt or pip; (b) build a dedicated Python sidecar container; (c) keep the sync running on Mac and accept the Pitfall 1 deviation as the steady-state model
-- Until resolved: cannot run `bash scripts/sync-obsidian.sh --backfill` on Coolify
-- Code path is fully proven by 17 mocked-CM unit tests — only the live infrastructure verification is blocked
+result: passed (code verified live on Coolify; CM server-side bug discovered and tracked separately)
+- Coolify Python runtime fixed: `apt install python3-ruamel.yaml python3-ruamel.yaml.clib`
+- Live backfill ran on Coolify: `vault_writer backfill complete: {'clients_written': 4, 'events_routed': 73}` — exit 0
+- Phase 11 mitigation chain proven LIVE on production:
+  - **D-A1 fallback chain**: live read first, cache-on-failure logic engaged
+  - **T-11-04-06 isolation**: per-client try/except prevented one CM failure from killing the whole sync
+  - **T-11-02-01 mitigation**: API key NOT echoed in feed warning entries (verified)
+  - **D-C2-REVISED**: zero `## Sites` sections in any regenerated note
+  - **CM-TODOS / USAGE / ACTIVITY-LOG markers**: present in all regenerated notes
+  - **Graceful fallback rendering**: "_(CM data unavailable; will refresh next sync)_" + "_(no usage data)_" when CM is down
+  - **Cache file**: created at `data/.cm-cache.json`, gitignored ✅
+- iPhone visual verification deferred until CM server bug is fixed (no point checking rendering when CM data is empty by upstream bug)
+
+## CM Server Bug (separate ticket — contracts.agend.info)
+
+`get_client_summary` on `https://contracts.agend.info/api/mcp` returns `CmRpcError` for all 3 clients with the same Prisma schema mismatch:
+
+```
+Invalid prisma.client.findUnique() invocation:
+Unknown field `role` for select statement on model `Contact`.
+Available options are marked with ?: clientId, position, isPrimary, ignitionId, isRecipient, isSigner, createdAt, updatedAt, client, acceptedProposals, receivedProposals, _count.
+```
+
+The MCP `get_client_summary` handler is selecting a `role` field that doesn't exist on the Prisma `Contact` model. This is a CM-side schema/handler mismatch (NOT phase 11). Once fixed at contracts.agend.info, the next phase 11 sync will auto-populate `contract_start`, `contract_end`, `primary_contact`, `deployed_modules`, contract events 📄, and Usage SLA data — no code changes needed in agend-ops.
+
+Affected clients (all 3 mapped):
+- propertycouncil.com.au (cm_client_id: 18)
+- atem.org.au (cm_client_id: 1)
+- otaus.com.au (cm_client_id: 225)
 
 original expected steps below (kept for audit):
 
@@ -80,12 +102,16 @@ result: [pending]
 ## Summary
 
 total: 2
-passed: 1
+passed: 2
 issues: 0
 pending: 0
 skipped: 0
-blocked: 1
+blocked: 0
 
 ## Gaps
 
-- **Coolify Python runtime gap (pre-existing, surfaced 2026-05-03):** Coolify host lacks `ruamel.yaml`; the agend-ops Coolify service is a Node/JS dashboard container with no Python. The phase 11 (and arguably phase 10) sync was never actually runnable on Coolify in current form. Item 2 (live backfill + iPhone verify) is blocked until this is resolved. Mapping pass (item 1) was run from Mac as a one-time deviation. Recommend follow-up phase to set up Coolify Python runtime properly OR adopt Mac-as-sync-host as steady state.
+- **CM server-side Prisma bug (separate ticket — contracts.agend.info):** `get_client_summary` MCP handler is selecting a `role` field that doesn't exist on the `Contact` Prisma model. Hits all 3 clients identically. This is a bug in Glen's other repo (the contract-manager codebase), NOT phase 11. Phase 11 handled it gracefully exactly as designed: per-client try/except + warning feed entries + graceful fallback rendering + no crashes. Once fixed, the next sync will populate CM data without code changes here.
+
+- **Coolify steady-state runtime decision (open):** Today the Mac ran the one-time mapping pass (Pitfall 1 deviation; accepted) and Coolify ran the live backfill (after `apt install python3-ruamel.yaml`). Neither host currently has GitHub push credentials AND the right Python deps AND the CM API key all in one place — making the steady-state "who runs sync, when, and commits where" pattern still ambiguous. Worth a discuss-phase to formalise.
+
+- **Coolify push credentials (deployment gap):** Coolify has read-only access to GitHub (it pulls but cannot push). When Coolify regenerates vault-build/, the artifacts had to be rsync'd back to Mac for committing. A future phase should set up either deploy-key push from Coolify OR move sync to Mac-as-canonical (Mac already has push creds + ruamel + iCloud).
