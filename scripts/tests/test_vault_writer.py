@@ -497,5 +497,87 @@ class TestProjection(unittest.TestCase):
                     )
 
 
+class TestRenderFrontmatterPhase11(unittest.TestCase):
+    """Phase 11: render_frontmatter extension with cm_extra + cm_stale_since kwargs.
+
+    Backwards compatibility (Phase 10 callers passing only client + last_synced) MUST
+    produce byte-identical output to the Phase 10 implementation. The new kwargs
+    default to None and are purely additive.
+    """
+
+    def _client(self):
+        return {"domain": "example.com", "client_name": "Example", "status": "active"}
+
+    def test_render_frontmatter_no_cm_extra_unchanged(self):
+        from scripts.lib.vault_writer import render_frontmatter
+        out = render_frontmatter(self._client(), "2026-05-02T10:30:00+10:30")
+        # Phase 10 four keys present
+        self.assertIn("domain: example.com", out)
+        self.assertIn("client_name: Example", out)
+        self.assertIn("status: active", out)
+        self.assertIn("last_synced:", out)
+        # No CM keys
+        self.assertNotIn("deployed_modules", out)
+        self.assertNotIn("contract_start", out)
+        self.assertNotIn("sites", out)
+        self.assertNotIn("cm_data_stale_since", out)
+
+    def test_render_frontmatter_with_cm_extra_appends_five_keys(self):
+        from scripts.lib.vault_writer import render_frontmatter
+        cm_extra = {
+            "deployed_modules": ["AMS Core"],
+            "contract_start": "2026-01-01",
+            "contract_end": "2027-01-01",
+            "primary_contact": "Alice",
+            "sites": [],
+        }
+        out = render_frontmatter(self._client(), "2026-05-02T10:30:00+10:30",
+                                 cm_extra=cm_extra)
+        for key in ("contract_start", "contract_end", "primary_contact",
+                    "deployed_modules", "sites"):
+            self.assertIn(key, out)
+        # Phase 10 keys still come first (sanity check on ordering)
+        self.assertLess(out.index("last_synced"), out.index("contract_start"))
+
+    def test_render_frontmatter_with_cm_stale_since_appended_last(self):
+        from scripts.lib.vault_writer import render_frontmatter
+        out = render_frontmatter(self._client(), "2026-05-02T10:30:00+10:30",
+                                 cm_extra={}, cm_stale_since="2026-05-01T12:00:00+10:30")
+        self.assertIn("cm_data_stale_since", out)
+        self.assertIn("2026-05-01T12:00:00+10:30", out)
+
+    def test_render_frontmatter_empty_scalars_render_as_empty_strings(self):
+        from scripts.lib.vault_writer import render_frontmatter
+        cm_extra = {
+            "deployed_modules": [],
+            "contract_start": "",
+            "contract_end": "",
+            "primary_contact": "",
+            "sites": [],
+        }
+        out = render_frontmatter(self._client(), "2026-05-02T10:30:00+10:30",
+                                 cm_extra=cm_extra)
+        # D-B1: empty scalar → ''. ruamel.yaml may emit "''" or '""' for empty string.
+        # The crucial invariant is: NO 'null' or '~' tokens for these fields.
+        for key in ("contract_start", "contract_end", "primary_contact"):
+            self.assertIn(f"{key}:", out)
+        # D-B2: empty array → [] (or block style with no children).
+        self.assertNotIn("null", out.lower())
+        self.assertNotIn(": ~", out)
+
+    def test_render_frontmatter_omits_cm_keys_when_extra_is_none(self):
+        from scripts.lib.vault_writer import render_frontmatter
+        out = render_frontmatter(self._client(), "2026-05-02T10:30:00+10:30",
+                                 cm_extra=None)
+        self.assertNotIn("deployed_modules", out)
+        self.assertNotIn("sites", out)
+
+    def test_render_frontmatter_omits_cm_stale_since_when_none(self):
+        from scripts.lib.vault_writer import render_frontmatter
+        out = render_frontmatter(self._client(), "2026-05-02T10:30:00+10:30",
+                                 cm_stale_since=None)
+        self.assertNotIn("cm_data_stale_since", out)
+
+
 if __name__ == "__main__":
     unittest.main()

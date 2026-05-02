@@ -550,14 +550,34 @@ def render_activity_log(events: list) -> str:
     return "\n".join(lines).rstrip("\n")
 
 
-def render_frontmatter(client: dict, last_synced_iso: str) -> str:
-    """ruamel.yaml round-tripped frontmatter (D-09 v1: 4 fields, snake_case)."""
+def render_frontmatter(client: dict, last_synced_iso: str,
+                       cm_extra: dict | None = None,
+                       cm_stale_since: str | None = None) -> str:
+    """ruamel.yaml round-tripped frontmatter (D-09 v1 + Phase 11 CM extras).
+
+    Phase 10 keys (UNCHANGED order): domain, client_name, status, last_synced.
+    Phase 11 additive keys (only when cm_extra is not None): contract_start, contract_end,
+        primary_contact, deployed_modules, sites. Per D-B1/D-B2: empty scalars → '',
+        empty arrays → []. Per D-C2-REVISED: sites is always [] (no Sites section is
+        rendered; the frontmatter key remains for future-compat with DataView).
+    cm_data_stale_since (only when cm_stale_since is not None): stamped during cache
+        fallback per D-A3 + D-A3-REVISED.
+    """
     fm = {
         "domain": client["domain"],
         "client_name": client["client_name"],
         "status": client.get("status", "active"),
         "last_synced": last_synced_iso,
     }
+    if cm_extra is not None:
+        # Order: contracts → contact → infra (chronological grouping per RESEARCH lines 396-399)
+        fm["contract_start"]   = cm_extra.get("contract_start", "")
+        fm["contract_end"]     = cm_extra.get("contract_end", "")
+        fm["primary_contact"]  = cm_extra.get("primary_contact", "")
+        fm["deployed_modules"] = cm_extra.get("deployed_modules", [])
+        fm["sites"]            = cm_extra.get("sites", [])
+    if cm_stale_since:
+        fm["cm_data_stale_since"] = cm_stale_since
     buf = StringIO()
     _yaml_instance().dump(fm, buf)
     return f"---\n{buf.getvalue()}---\n"

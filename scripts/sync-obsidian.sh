@@ -26,6 +26,12 @@ if ! command -v flock >/dev/null 2>&1; then
   exit 1
 fi
 
+# ----- Phase 11: CM MCP API key validation -----
+# CONTRACT_MANAGER_API_KEY is required for CM JSON-RPC calls (D-A2). The Mac daemon
+# does NOT run this wrapper (Pitfall 1: Mac never calls CM by design), so this validation
+# only fires on Coolify. The ${VAR:?msg} idiom aborts with the msg if VAR is unset OR empty.
+: "${CONTRACT_MANAGER_API_KEY:?CONTRACT_MANAGER_API_KEY env var required (set on Coolify; not on Mac)}"
+
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOCK_FILE="$REPO_ROOT/scripts/.vault-sync.lock"
 DATA_ROOT="$REPO_ROOT/data"

@@ -29,3 +29,6 @@ node_modules/
 
 # Runtime lock files (created by flock in scripts/sync-obsidian.sh)
 scripts/.vault-sync.lock
+
+# Phase 11: Contract Manager response cache (per-host runtime state, fallback only — D-F1)
+data/.cm-cache.json
