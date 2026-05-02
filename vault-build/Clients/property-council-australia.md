@@ -2,7 +2,32 @@
 domain: propertycouncil.com.au
 client_name: Property Council Australia
 status: active
-last_synced: '2026-05-03T06:43:34+10:00'
+last_synced: '2026-05-03T07:04:05+10:00'
+contract_start: '2025-04-01'
+contract_end: ''
+primary_contact: Craig Horton
+deployed_modules:
+  - Additional SLA
+  - 'Change Request: Brightspace Webhook Implementation'
+  - Custom Event Search Widget
+  - Domain name purchase & DNS Management
+  - Domain name renewal & DNS Management
+  - Domain name renewal & DNS Management - 2026
+  - Domain name renewal & DNS management
+  - License Fees
+  - Monthly Agend Support, Hosting & Licensing
+  - PCA - Criteria for Related Courses and Events
+  - PCA - Event Waitlist Functionality Enhancement
+  - PCA - Speaker EOI Updates
+  - PCA Academy Courses & Industry Diplomas Updates
+  - PCA Brightspace Roles
+  - PCA Course Details Logic
+  - PCA Division Pricing
+  - PCA File Protection Solution
+  - PCA Preventing Multiple Registrations
+  - PCA Pricepoints UI
+  - PCA Related Events Widget Enhancement
+sites: []
 ---
 ## Overview
 
@@ -12,7 +37,7 @@ _No notes yet — replace this line with relationship context._
 <!-- CM-TODOS-START -->
 ## TODO: Missing CM Data
 
-_(CM data unavailable; will refresh next sync)_
+- `contract_end` — set in [Contract Manager](https://contracts.agend.info/) (Contract end date)
 <!-- CM-TODOS-END -->
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->

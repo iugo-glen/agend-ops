@@ -8,7 +8,7 @@ updated: 2026-05-03T07:00:00+10:00
 
 ## Current Test
 
-Both UAT items completed 2026-05-03. Phase 11 code is production-verified end-to-end on Coolify. Discovered CM server-side Prisma schema bug (separate from phase 11) — see Gaps section.
+Both UAT items completed 2026-05-03. Phase 11 code is production-verified end-to-end on Coolify with LIVE CM data flowing into client notes (after fixing two CM server-side Prisma schema bugs in contracts.agend.info). 3/3 mapped clients now have populated `contract_start`, `primary_contact`, and `deployed_modules` from CM. iPhone visual verification still pending (Glen's call when convenient).
 
 ## Tests
 
@@ -58,22 +58,23 @@ result: passed (code verified live on Coolify; CM server-side bug discovered and
   - **Cache file**: created at `data/.cm-cache.json`, gitignored ✅
 - iPhone visual verification deferred until CM server bug is fixed (no point checking rendering when CM data is empty by upstream bug)
 
-## CM Server Bug (separate ticket — contracts.agend.info)
+## CM Server Bugs Fixed 2026-05-03
 
-`get_client_summary` on `https://contracts.agend.info/api/mcp` returns `CmRpcError` for all 3 clients with the same Prisma schema mismatch:
+Two stale-field bugs in `contracts.agend.info` get_client_summary handler — both shipped:
 
-```
-Invalid prisma.client.findUnique() invocation:
-Unknown field `role` for select statement on model `Contact`.
-Available options are marked with ?: clientId, position, isPrimary, ignitionId, isRecipient, isSigner, createdAt, updatedAt, client, acceptedProposals, receivedProposals, _count.
-```
+1. **`Contact.role` → `Contact.position`** (commit b1f95ca on contract-manager:main)
+   `get_client_summary` was selecting `role` from contacts; field is actually `position` per the Prisma schema. Fixed in `src/lib/mcp/tools/lookups.ts:103`.
 
-The MCP `get_client_summary` handler is selecting a `role` field that doesn't exist on the Prisma `Contact` model. This is a CM-side schema/handler mismatch (NOT phase 11). Once fixed at contracts.agend.info, the next phase 11 sync will auto-populate `contract_start`, `contract_end`, `primary_contact`, `deployed_modules`, contract events 📄, and Usage SLA data — no code changes needed in agend-ops.
+2. **`Invoice.paidAmount` → derived from `paidDate`** (commit cdd94ed on contract-manager:main)
+   Two handlers (`get_client_summary` recentInvoices subquery + `get_cash_flow_summary`) were selecting `paidAmount` which doesn't exist on the Invoice model. Schema only has `amount` + `paidDate` (no partial-payment tracking). Fixed by removing from select and deriving: `paidAmount = paidDate ? Number(amount) : 0`. Fixed in `src/lib/mcp/tools/lookups.ts:155,201` + `src/lib/mcp/tools/financial.ts:290,314,317`.
 
-Affected clients (all 3 mapped):
-- propertycouncil.com.au (cm_client_id: 18)
-- atem.org.au (cm_client_id: 1)
-- otaus.com.au (cm_client_id: 225)
+Both fixes verified: 26/26 vitest unit tests pass. Coolify auto-deployed both. Re-running agend-ops backfill after second fix produced **clean run with zero CM warnings** and **all 3 mapped clients populated with live CM data**:
+
+- **PCA** (cm_client_id 18): `contract_start: '2025-04-01'`, `primary_contact: Craig Horton`, 20+ deployed modules
+- **ATEM** (cm_client_id 1): `contract_start: '2026-03-11'`, `primary_contact: David Hathaway`, 1 deployed module
+- **OTA** (cm_client_id 225): `primary_contact: Alexandra Reynolds`, no contract data (no active CM contract for OTA)
+
+Empty contract events 📄 and zero CM invoices in Activity Log = CM legitimately has no expiring contracts or overdue invoices right now (not a bug).
 
 original expected steps below (kept for audit):
 
@@ -110,8 +111,10 @@ blocked: 0
 
 ## Gaps
 
-- **CM server-side Prisma bug (separate ticket — contracts.agend.info):** `get_client_summary` MCP handler is selecting a `role` field that doesn't exist on the `Contact` Prisma model. Hits all 3 clients identically. This is a bug in Glen's other repo (the contract-manager codebase), NOT phase 11. Phase 11 handled it gracefully exactly as designed: per-client try/except + warning feed entries + graceful fallback rendering + no crashes. Once fixed, the next sync will populate CM data without code changes here.
-
 - **Coolify steady-state runtime decision (open):** Today the Mac ran the one-time mapping pass (Pitfall 1 deviation; accepted) and Coolify ran the live backfill (after `apt install python3-ruamel.yaml`). Neither host currently has GitHub push credentials AND the right Python deps AND the CM API key all in one place — making the steady-state "who runs sync, when, and commits where" pattern still ambiguous. Worth a discuss-phase to formalise.
 
 - **Coolify push credentials (deployment gap):** Coolify has read-only access to GitHub (it pulls but cannot push). When Coolify regenerates vault-build/, the artifacts had to be rsync'd back to Mac for committing. A future phase should set up either deploy-key push from Coolify OR move sync to Mac-as-canonical (Mac already has push creds + ruamel + iCloud).
+
+- **iPhone Obsidian visual verification (deferred):** Glen will check on iPhone when convenient — the rendering on iPhone is independent of the sync pipeline (iCloud → Obsidian) and will reflect whatever's in the iCloud-projected vault. Phase 10 D-03 routing means projection happens via Mac LaunchAgent reading the same vault-build/ that's now committed. Glen can verify any time.
+
+- **(Resolved) CM server Prisma bugs:** Two field-name mismatches in `get_client_summary` handler at `contracts.agend.info` were fixed in commits b1f95ca and cdd94ed (contract-manager:main). Live CM data now flows into agend-ops client notes. See "CM Server Bugs Fixed" section above for details.

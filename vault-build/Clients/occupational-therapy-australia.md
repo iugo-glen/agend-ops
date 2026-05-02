@@ -2,7 +2,12 @@
 domain: otaus.com.au
 client_name: Occupational Therapy Australia
 status: active
-last_synced: '2026-05-03T06:43:34+10:00'
+last_synced: '2026-05-03T07:04:05+10:00'
+contract_start: ''
+contract_end: ''
+primary_contact: Alexandra Reynolds
+deployed_modules: []
+sites: []
 ---
 ## Overview
 
@@ -12,7 +17,9 @@ _No notes yet — replace this line with relationship context._
 <!-- CM-TODOS-START -->
 ## TODO: Missing CM Data
 
-_(CM data unavailable; will refresh next sync)_
+- `contract_start` — set in [Contract Manager](https://contracts.agend.info/) (Contract start date)
+- `contract_end` — set in [Contract Manager](https://contracts.agend.info/) (Contract end date)
+- `deployed_modules` — set in [Contract Manager](https://contracts.agend.info/) (Deployed modules (derived from contract names))
 <!-- CM-TODOS-END -->
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
