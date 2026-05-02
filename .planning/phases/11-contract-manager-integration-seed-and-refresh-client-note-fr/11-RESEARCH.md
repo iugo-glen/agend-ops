@@ -734,34 +734,39 @@ The planner MUST honor these — verbatim from `/Users/glenr/work/todo-list/CLAU
 | A7 | Coolify can be configured to inject `CONTRACT_MANAGER_API_KEY` as an env var visible to bash subshells | Standard Stack > Stack Patterns | Standard Coolify behavior; if env injection requires a service restart, the plan should document that. |
 | A8 | The `get_utilization_summary` and `get_capacity_summary` tools are global (no client filter), so D-C3's "consultant utilization for THIS client" cannot be sourced from them as-is | CM Tool Contract Reference | If Glen confirms global-team utilization is acceptable as a per-client section, fine. If he wants client-scoped utilization, CM needs a tool addition first. **This is a Critical Finding — see Open Questions.** |
 
-## Open Questions
+## Open Questions (RESOLVED 2026-05-02)
 
-These need resolution **before** the planner writes plans:
+These needed resolution before the planner wrote plans. All five were resolved during the post-research CONTEXT.md refinement session and confirmed by Plan 02 Task 3's checkpoint. Each question is annotated below with the resolving decision.
 
 1. **Sites and `deployed_modules` source — CM cannot supply them today.**
    - What we know: Prisma `Site` and `Product` tables exist; MCP does not expose them.
    - What's unclear: Does Glen want Phase 11 to ship without Sites + with `deployed_modules` derived from contract names (limited fidelity)? Or extend CM's MCP first to add `list_sites_for_client(clientId)` and `list_deployed_products_for_client(clientId)`?
    - Recommendation: **Defer Sites until CM exposes a tool for it. Use `activeContracts[].name` for `deployed_modules` v1 with a note in the rendered section that says "(derived from contract names; will refine when CM exposes per-product detail)".** This keeps Phase 11 shippable. Glen can add CM tools in a Phase 11.x or Phase 12.
+   - **RESOLVED:** see CONTEXT.md D-C2-REVISED (Sites section deferred; `sites: []` always) + D-B-MOD-REVISED (`deployed_modules` derived from `activeContracts[].name`).
 
 2. **D-C3 Usage section — `get_utilization_summary` and `get_capacity_summary` are GLOBAL not per-client.**
    - What we know: Both tools return team-wide data, not client-filtered. `get_sla_status` is the closest to per-client (per-project + classifies by client) but isn't listed in CONTEXT.md.
    - What's unclear: Should each client note's Usage section show team-wide aggregates (i.e., the same numbers for all 3 clients)? Or should we use `get_sla_status` to scope by project per-client? Or defer Usage to Phase 11.x?
    - Recommendation: **Use `get_sla_status` (which CM already exposes) for the per-client Usage section.** Its `projects[]` array has `clientName` for grouping, and renders fields close to CONTEXT.md D-C3 ("hours billed this month, % of budget"). Add this to CONTEXT.md tool list before planning. If Glen still wants `get_utilization_summary` data, render it once in a global "Team utilization" stub on `_Unknown.md` or a future portfolio dashboard.
+   - **RESOLVED:** see CONTEXT.md D-C3-REVISED (Usage section uses `get_sla_status` per-client; `get_utilization_summary` / `get_capacity_summary` rejected because team-wide).
 
 3. **`warning` level on feed-entry schema — extend or substitute?**
    - What we know: Schema currently allows only `["critical", "info", "debug"]`. CONTEXT.md D-A3 says CM staleness is `warning`.
    - What's unclear: Does the planner have authority to extend the schema, or is this a separate task that needs Glen's blessing?
    - Recommendation: Treat as a Wave 0 task. One JSON line edit, no breaking change. Plan should sequence schema-extend BEFORE the first CM warning emission.
+   - **RESOLVED:** see CONTEXT.md D-A3-REVISED (`warning` level added to `schemas/feed-entry.json` as Wave 0 task; additive enum change).
 
 4. **API key bootstrap timing.**
    - What we know: Glen mints in CM dashboard, sets in Coolify env.
    - What's unclear: When does this happen relative to plan execution? If the plan implements + tests against a key that doesn't yet exist, every integration test fails.
    - Recommendation: Plan structure as Wave 0 = "Glen mints key, sets on Coolify, confirms via curl"; Waves 1+ = code. The mock-based tests run regardless of key presence.
+   - **RESOLVED:** see Plan 02 Task 3 checkpoint (Glen mints CM key at `/settings/mcp`, injects via Coolify env, runs `--mode map-cm-clients`, commits `clients.jsonl`). Mock-based unit tests run regardless of key presence.
 
 5. **Mapping pass execution mode.**
    - What we know: `search_clients` returns ID for a name query; cache `cm_client_id` in `clients.jsonl`.
    - What's unclear: Where does this run — a one-shot script, a `vault_writer --mode map-cm-clients` mode, or inline as part of first sync?
    - Recommendation: New mode `vault_writer --mode map-cm-clients` (idempotent — re-runs are safe and update IDs if CM IDs ever change). Run manually by Glen once. Subsequent syncs skip the mapping (cm_client_id already populated). If a client is added to `clients.jsonl` and lacks `cm_client_id`, sync runs `search_clients` for that one new client only.
+   - **RESOLVED:** see CONTEXT.md D-G1 (mandatory `vault_writer --mode map-cm-clients` Wave 0 mapping pass; idempotent; new `clients.jsonl` records without `cm_client_id` trigger a single `search_clients` JIT mapping on next sync).
 
 ## Environment Availability
 
