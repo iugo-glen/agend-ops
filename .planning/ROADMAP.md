@@ -213,13 +213,16 @@ Plans:
 
 ### Phase 11: Contract Manager Integration
 
-**Goal:** Integrate the contract-manager MCP (`https://contracts.agend.info/api/mcp`) to seed and refresh client-note frontmatter (`deployed_modules`, `contract_start`, `contract_end`, `primary_contact`, `sites[]`). Log contract events (renewals, signings, terminations) to the Activity Log. Add Sites and Usage sub-sections to client notes. Reconcile invoice data between `data/invoices/` and Contract Manager's canonical Invoice model.
-**Requirements**: TBD (extends INTL-01)
+**Goal:** Integrate the contract-manager MCP (`https://contracts.agend.info/api/mcp`) to seed and refresh client-note frontmatter (`deployed_modules`, `contract_start`, `contract_end`, `primary_contact`, `sites[]` — `sites[]` ships as `[]` only; the Sites section is deferred per D-C2-REVISED until CM exposes a per-client sites tool). Log contract events (renewals, expiries) to the Activity Log with the new 📄 emoji. Add Usage section sourced from `get_sla_status` per client (D-C3-REVISED). Reconcile invoice data between `data/invoices/active.jsonl` (canonical, unchanged) and CM `list_overdue_invoices` (read-only merge into Activity Log; dedup by invoice_number with case-fold + trim only).
+**Requirements**: INTL-01 (extended)
 **Depends on:** Phase 10
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 11 to break down)
+- [ ] 11-01-PLAN.md — Wave 0 bootstrap: schema warning level, .gitignore cache exclusion, sync-obsidian.sh env validation, render_frontmatter signature extension
+- [ ] 11-02-PLAN.md — cm_client.py JSON-RPC client + retry + cache + adapter + `--mode map-cm-clients` mapping pass (Glen runs once on Coolify)
+- [ ] 11-03-PLAN.md — vault_writer rendering: MANAGED_SECTIONS extension, EMOJI 📄 contract, _NOTE_TEMPLATE with CM-TODOS + USAGE marker pairs (no SITES), render_cm_todos, render_usage
+- [ ] 11-04-PLAN.md — _gather_events CM extension + invoice dedup + run_backfill CM integration + cache fallback + cm_data_stale_since stamp + Pitfall 1 Mac-daemon isolation test (Glen runs end-to-end backfill + iPhone verification)
 
 ### Phase 12: Calendar + Drive Activity Enrichment
 
