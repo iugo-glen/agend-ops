@@ -3,6 +3,7 @@
 These tests are RED until Plan 02 implements scripts/lib/vault_writer.py.
 Run: python3 -m unittest discover scripts/tests
 """
+import json
 import os
 import subprocess
 import sys
@@ -785,6 +786,165 @@ class TestUsageSection(unittest.TestCase):
         ])
         out = render_usage(sla, "Property Council")
         self.assertIn("PCA Project", out)
+
+
+class TestGatherEventsCmIntegration(unittest.TestCase):
+    """Phase 11 _gather_events: CM contract events + CM invoice merge with dedup."""
+
+    def _setup(self, d: Path) -> Path:
+        config = d / "config"
+        config.mkdir()
+        (d / "triage").mkdir()
+        (d / "tasks").mkdir()
+        (d / "invoices").mkdir()
+        (d / "todos").mkdir()
+        (config / "clients.jsonl").write_text(
+            '{"domain": "ex.com", "name": "Ex", "cm_client_id": 42}\n',
+            encoding="utf-8",
+        )
+        (d / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+        (d / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+        return d
+
+    def test_gather_events_includes_contract_events_when_cm_expiring_provided(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            cm_expiring = {"contracts": [
+                {"id": 7, "name": "MSA", "client": "Ex", "clientId": 42,
+                 "endDate": "2026-06-15", "daysUntilExpiry": 30},
+            ]}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               cm_expiring=cm_expiring)
+            slug = clients["ex.com"]["slug"]
+            kinds = [e[1] for e in events_by_slug.get(slug, [])]
+            self.assertIn("contract", kinds)
+
+    def test_gather_events_unmapped_cm_clientid_routes_to_unknown(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            cm_expiring = {"contracts": [
+                {"id": 7, "name": "MSA", "client": "Stranger", "clientId": 999,
+                 "endDate": "2026-06-15", "daysUntilExpiry": 30},
+            ]}
+            _, unknown_pairs = _gather_events(data_root, clients,
+                                              cm_expiring=cm_expiring)
+            kinds = [evt[1] for (evt, _src) in unknown_pairs]
+            self.assertIn("contract", kinds)
+
+    def test_gather_events_dedup_invoice_local_wins(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            (data_root / "invoices" / "active.jsonl").write_text(
+                '{"id":"inv-001","invoice_number":"INV-0042","client_domain":"ex.com",'
+                '"status":"sent","amount":1000}\n',
+                encoding="utf-8",
+            )
+            clients = load_clients(data_root)
+            cm_invoices = {"invoices": [
+                {"id": 11, "invoiceNumber": "INV-0042", "amount": 1000,
+                 "issueDate": "2026-04-01", "dueDate": "2026-04-30",
+                 "daysPastDue": 30, "severity": "warning",
+                 "client": "Ex", "clientId": 42, "contract": "MSA", "contractId": 7},
+            ]}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               cm_invoices=cm_invoices)
+            slug = clients["ex.com"]["slug"]
+            invoice_summaries = [e[2] for e in events_by_slug.get(slug, [])
+                                 if e[1] == "invoice"]
+            # Only one invoice line — the local one (Phase 10 _event_tuple format)
+            self.assertEqual(len(invoice_summaries), 1)
+            # The CM-source-tag must NOT appear (local wins; no source label)
+            invoice_details = [e[3] for e in events_by_slug.get(slug, [])
+                               if e[1] == "invoice"]
+            self.assertFalse(any(d and "contract-manager" in d for d in invoice_details))
+
+    def test_gather_events_dedup_case_insensitive(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            (data_root / "invoices" / "active.jsonl").write_text(
+                '{"id":"inv-001","invoice_number":"INV-0042","client_domain":"ex.com",'
+                '"status":"sent","amount":1000}\n',
+                encoding="utf-8",
+            )
+            clients = load_clients(data_root)
+            cm_invoices = {"invoices": [
+                {"id": 11, "invoiceNumber": "inv-0042",  # lowercase variant
+                 "amount": 1000, "issueDate": "2026-04-01", "dueDate": "2026-04-30",
+                 "daysPastDue": 30, "severity": "warning",
+                 "client": "Ex", "clientId": 42, "contract": "MSA", "contractId": 7},
+            ]}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               cm_invoices=cm_invoices)
+            slug = clients["ex.com"]["slug"]
+            inv_count = sum(1 for e in events_by_slug.get(slug, []) if e[1] == "invoice")
+            self.assertEqual(inv_count, 1)  # case-fold dedup honoured
+
+    def test_gather_events_dedup_does_not_strip_prefixes(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            (data_root / "invoices" / "active.jsonl").write_text(
+                '{"id":"inv-001","invoice_number":"INV-0042","client_domain":"ex.com",'
+                '"status":"sent","amount":1000}\n',
+                encoding="utf-8",
+            )
+            clients = load_clients(data_root)
+            # Pitfall 4: stripping "INV-" prefix would conflate; we must NOT
+            cm_invoices = {"invoices": [
+                {"id": 11, "invoiceNumber": "0042",  # bare digits — different invoice
+                 "amount": 999, "issueDate": "2026-04-01", "dueDate": "2026-04-30",
+                 "daysPastDue": 30, "severity": "warning",
+                 "client": "Ex", "clientId": 42, "contract": "MSA", "contractId": 7},
+            ]}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               cm_invoices=cm_invoices)
+            slug = clients["ex.com"]["slug"]
+            inv_count = sum(1 for e in events_by_slug.get(slug, []) if e[1] == "invoice")
+            self.assertEqual(inv_count, 2)  # treated as DIFFERENT invoices
+
+    def test_gather_events_no_cm_kwargs_unchanged_phase10_behaviour(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            (data_root / "tasks" / "active.jsonl").write_text(
+                '{"id":"task-1","status":"open","description":"do thing",'
+                '"client_domain":"ex.com","ts":"2026-04-01T10:00:00+10:30"}\n',
+                encoding="utf-8",
+            )
+            clients = load_clients(data_root)
+            ev_p10, _ = _gather_events(data_root, clients)
+            ev_p11, _ = _gather_events(data_root, clients,
+                                       cm_expiring=None, cm_invoices=None)
+            self.assertEqual(ev_p10, ev_p11)
+
+
+class TestContractMerge(unittest.TestCase):
+    """Phase 11 D-E1 + render_log_line accepts kind=contract."""
+
+    def test_render_log_line_accepts_contract_kind(self):
+        from scripts.lib.vault_writer import render_log_line
+        out = render_log_line(rec_ts_iso="2026-06-15T00:00:00+10:30",
+                              kind="contract", summary="x")
+        self.assertTrue(out.startswith("### [2026-06-15 00:00] 📄 x"))
+
+    def test_cm_contract_event_tuple_shape(self):
+        from scripts.lib.vault_writer import _cm_contract_event_tuple
+        ts, kind, summary, detail, ttid = _cm_contract_event_tuple({
+            "id": 1, "name": "MSA", "client": "PCA", "clientId": 42,
+            "endDate": "2026-06-15", "daysUntilExpiry": 30,
+        })
+        self.assertEqual(kind, "contract")
+        self.assertIn("PCA", summary)
+        self.assertIn("MSA", summary)
+        self.assertIn("source: contract-manager", detail)
+        self.assertIn("https://contracts.agend.info/contracts/1", detail)
+        self.assertIsNone(ttid)
 
 
 if __name__ == "__main__":
