@@ -46,10 +46,11 @@ from ruamel.yaml import YAML
 
 # Constants ---------------------------------------------------------------
 
-EMOJI_BY_KIND = {"triage": "📧", "task": "✅", "invoice": "💰"}
+EMOJI_BY_KIND = {"triage": "📧", "task": "✅", "invoice": "💰", "contract": "📄"}
 GMAIL_THREAD_URL = "https://mail.google.com/mail/u/0/#inbox/{thread_id}"
-# OVERVIEW marker pair dropped per researcher recommendation; D-08 keeps OPEN-ITEMS + ACTIVITY-LOG.
-MANAGED_SECTIONS = ("OPEN-ITEMS", "ACTIVITY-LOG")
+# Phase 11 D-B3 + D-C1 + D-C3-REVISED: managed sections in display order (CM-TODOS,
+# OPEN-ITEMS, USAGE, ACTIVITY-LOG). Sites is OMITTED per D-C2-REVISED.
+MANAGED_SECTIONS = ("CM-TODOS", "OPEN-ITEMS", "USAGE", "ACTIVITY-LOG")
 TS_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$")
 _VALID_CHARS_RE = re.compile(r"[^a-z0-9-]+")
 _DASH_RUN_RE = re.compile(r"-{2,}")
@@ -247,11 +248,25 @@ _NOTE_TEMPLATE = """\
 _No notes yet — replace this line with relationship context._
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
+<!-- CM-TODOS-START -->
+## TODO: Missing CM Data
+
+{cm_todos}
+<!-- CM-TODOS-END -->
+
+<!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
 <!-- OPEN-ITEMS-START -->
 ## Open Items
 
 {open_items}
 <!-- OPEN-ITEMS-END -->
+
+<!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
+<!-- USAGE-START -->
+## Usage
+
+{usage}
+<!-- USAGE-END -->
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
 <!-- ACTIVITY-LOG-START -->
@@ -272,11 +287,25 @@ _UNKNOWN_TEMPLATE = """\
 _Auto-generated bucket of unmatched records. Surfaced for cleanup per D-06a._
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
+<!-- CM-TODOS-START -->
+## TODO: Missing CM Data
+
+_(no missing CM data)_
+<!-- CM-TODOS-END -->
+
+<!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
 <!-- OPEN-ITEMS-START -->
 ## Open Items
 
 _(none)_
 <!-- OPEN-ITEMS-END -->
+
+<!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
+<!-- USAGE-START -->
+## Usage
+
+_(no usage data)_
+<!-- USAGE-END -->
 
 <!-- DO NOT EDIT BETWEEN MARKERS — managed by /sync-obsidian -->
 <!-- ACTIVITY-LOG-START -->
@@ -584,15 +613,20 @@ def render_frontmatter(client: dict, last_synced_iso: str,
 
 
 def build_note_initial_markdown(client: dict, fm_str: str, open_items: str,
-                                activity_log: str) -> str:
+                                activity_log: str,
+                                cm_todos: str = "_(no missing CM data)_",
+                                usage: str = "_(no usage data)_") -> str:
     """Assemble the full note from the Pattern 2 marker template.
 
-    Used on every backfill run since vault-build/ is regenerated from full data
-    (D-02 transport rail; user-owned-section preservation is a Plan 04 concern).
+    Phase 11: cm_todos and usage are optional kwargs with safe placeholder defaults
+    so any pre-Phase-11 caller continues to produce a valid note (sections render
+    with their placeholder bodies). Plan 04's run_backfill threads real values in.
     """
     return _NOTE_TEMPLATE.format(
         frontmatter=fm_str.rstrip("\n"),
+        cm_todos=cm_todos,
         open_items=open_items,
+        usage=usage,
         activity_log=activity_log,
     )
 

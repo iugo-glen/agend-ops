@@ -410,7 +410,9 @@ class TestProjection(unittest.TestCase):
                 "---\ndomain: test.example\nclient_name: Test\nstatus: active\n"
                 "last_synced: 2026-05-01T10:30:00+10:30\n---\n\n"
                 "## Overview\n\n_template Overview placeholder_\n\n"
+                "<!-- CM-TODOS-START -->\nUPDATED-CM-TODOS\n<!-- CM-TODOS-END -->\n\n"
                 "<!-- OPEN-ITEMS-START -->\nUPDATED-OPEN-ITEMS\n<!-- OPEN-ITEMS-END -->\n\n"
+                "<!-- USAGE-START -->\nUPDATED-USAGE\n<!-- USAGE-END -->\n\n"
                 "<!-- ACTIVITY-LOG-START -->\nUPDATED-ACTIVITY-LOG\n<!-- ACTIVITY-LOG-END -->\n\n"
                 "## Decisions\n\n_template Decisions placeholder_\n",
                 encoding="utf-8",
@@ -426,7 +428,9 @@ class TestProjection(unittest.TestCase):
                 "## Overview\n\n"
                 "GLEN-CUSTOM-OVERVIEW: annual contract renewed Mar 2026, "
                 "primary contact Sarah K., billing on net-30.\n\n"
+                "<!-- CM-TODOS-START -->\nold-cm-todos-content\n<!-- CM-TODOS-END -->\n\n"
                 "<!-- OPEN-ITEMS-START -->\nold-open-items-content\n<!-- OPEN-ITEMS-END -->\n\n"
+                "<!-- USAGE-START -->\nold-usage-content\n<!-- USAGE-END -->\n\n"
                 "<!-- ACTIVITY-LOG-START -->\nold-activity-log-content\n<!-- ACTIVITY-LOG-END -->\n\n"
                 "## Decisions\n\n"
                 "GLEN-CUSTOM-DECISION: moved to monthly invoicing 2026-04 per Sarah's request.\n",
@@ -448,10 +452,14 @@ class TestProjection(unittest.TestCase):
             self.assertIn("moved to monthly invoicing 2026-04", after)
             # Glen's custom frontmatter field MUST survive ruamel round-trip
             self.assertIn("glen_added_field: my-custom-value", after)
-            # Managed sections MUST be replaced with source content
+            # Managed sections MUST be replaced with source content (all 4 per Phase 11 D-C1)
+            self.assertIn("UPDATED-CM-TODOS", after)
             self.assertIn("UPDATED-OPEN-ITEMS", after)
+            self.assertIn("UPDATED-USAGE", after)
             self.assertIn("UPDATED-ACTIVITY-LOG", after)
+            self.assertNotIn("old-cm-todos-content", after)
             self.assertNotIn("old-open-items-content", after)
+            self.assertNotIn("old-usage-content", after)
             self.assertNotIn("old-activity-log-content", after)
             # The template-only Overview text from source MUST NOT have been written to target
             self.assertNotIn("_template Overview placeholder_", after)
