@@ -40,7 +40,7 @@ The fswatch watcher script (`mac/vault-sync-watcher.sh`) already invokes vault_w
 Run on the Mac Studio that hosts the always-on git clone:
 
 ```bash
-cd /Users/glenr/work/todo-list
+cd /Users/glenr/work/agend-ops
 bash mac/install-daemon.sh
 ```
 
@@ -53,6 +53,27 @@ The installer is idempotent; re-running is safe.
 4. Installs the LaunchAgent plist to `~/Library/LaunchAgents/`
 5. Loads and starts the daemon
 
+### Verify Installation
+
+After running the installer, verify everything is working:
+
+```bash
+# Check daemon is running
+launchctl list | grep com.agend.vault-sync
+# Expected output: PID, exit-code (0), label
+# Example: 29541	0	com.agend.vault-sync
+
+# Check fswatch process is active
+ps aux | grep fswatch | grep -v grep
+# Should show: /opt/homebrew/bin/fswatch -o --latency 2 /Users/glenr/work/agend-ops/vault-build
+
+# Test manual sync (should complete without errors)
+cd /Users/glenr/work/agend-ops
+.venv/bin/python3 -m scripts.lib.vault_writer --mode project-to-icloud \
+  --build-root "$PWD/vault-build" --data-root "$PWD/data"
+# Expected output: vault_writer project-to-icloud complete: {...}
+```
+
 ## Configure git pull cadence (cron)
 
 The daemon watches `vault-build/` for filesystem changes; something needs to drive the changes by pulling from GitHub. Add a cron entry that pulls every 60s:
@@ -61,15 +82,37 @@ The daemon watches `vault-build/` for filesystem changes; something needs to dri
 # Open cron editor
 crontab -e
 
-# Add this line (change /Users/glenr/work/todo-list to your repo path):
-* * * * * cd /Users/glenr/work/todo-list && /usr/bin/git pull --ff-only --quiet 2>>/Users/glenr/Library/Logs/agend-git-pull.err.log
+# Add this line:
+* * * * * cd /Users/glenr/work/agend-ops && /usr/bin/git pull --ff-only --quiet 2>>/Users/glenr/Library/Logs/agend-git-pull.err.log
 
 # Save and exit. cron picks up the new entry on next minute boundary.
 ```
 
+### Verify Cron
+
+After saving the crontab:
+
+```bash
+# Verify crontab entry
+crontab -l
+# Should show: * * * * * cd /Users/glenr/work/agend-ops && /usr/bin/git pull...
+
+# Check cron daemon is running
+ps aux | grep cron | grep -v grep
+# Should show: root ... /usr/sbin/cron
+
+# Wait 1-2 minutes, then check error log (should be empty if working)
+ls -lh ~/Library/Logs/agend-git-pull.err.log
+# Size should be 0B (no errors)
+
+# Verify git status (should be up to date)
+git status -sb
+# Should show: ## master...origin/master
+```
+
 Defensive notes:
 - Use `--ff-only` so a divergent local branch fails loud rather than auto-merging.
-- If the local clone ever has stray uncommitted changes in `vault-build/` (shouldn't happen — the daemon only writes to iCloud, not back to vault-build/), the pull will fail. Fix by running: `cd /Users/glenr/work/todo-list && git checkout -- vault-build/ && git pull --ff-only`.
+- If the local clone ever has stray uncommitted changes in `vault-build/` (shouldn't happen — the daemon only writes to iCloud, not back to vault-build/), the pull will fail. Fix by running: `cd /Users/glenr/work/agend-ops && git checkout -- vault-build/ && git pull --ff-only`.
 
 ## iCloud Optimize Mac Storage warning (Pitfall 2)
 
@@ -131,3 +174,89 @@ If a client is removed from `data/config/clients.jsonl`, the corresponding `vaul
 Apple's `launchd.plist(5)` man page explicitly says: "Use of WatchPaths is highly discouraged, as filesystem event monitoring is highly race-prone, and modifications may be missed entirely, with no guarantee that the file will be in a consistent state when the job is launched."
 
 fswatch wraps Apple's FSEvents API correctly and (combined with `KeepAlive=true`) is the standard solution for reliable filesystem-driven launch agents on macOS.
+
+## Complete Setup Checklist
+
+Use this checklist to verify the entire sync pipeline is operational:
+
+### Step 1: Install the Daemon
+```bash
+cd /Users/glenr/work/agend-ops
+bash mac/install-daemon.sh
+```
+
+**Verify:**
+- ✅ Virtual environment created at `.venv/`
+- ✅ `ruamel.yaml` installed in venv
+- ✅ LaunchAgent loaded and running
+
+```bash
+# Quick check:
+launchctl list | grep vault-sync && echo "✅ Daemon running"
+ps aux | grep fswatch | grep -v grep && echo "✅ fswatch active"
+```
+
+### Step 2: Configure Cron
+```bash
+crontab -e
+# Add: * * * * * cd /Users/glenr/work/agend-ops && /usr/bin/git pull --ff-only --quiet 2>>/Users/glenr/Library/Logs/agend-git-pull.err.log
+```
+
+**Verify:**
+```bash
+crontab -l | grep agend-ops && echo "✅ Cron configured"
+ps aux | grep cron | grep -v grep && echo "✅ cron daemon running"
+# Wait 1-2 minutes
+ls -lh ~/Library/Logs/agend-git-pull.err.log && echo "✅ Git pull executing"
+```
+
+### Step 3: Configure iCloud
+In Finder, locate `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/AgendOps/`
+- Right-click the `AgendOps` folder
+- Select "Keep Downloaded"
+
+**Verify:**
+```bash
+ls -la ~/Library/Mobile\ Documents/iCloud~md~obsidian/Documents/AgendOps/Clients/
+# Should show client .md files, not .icloud placeholders
+```
+
+### Step 4: End-to-End Test
+1. On the Coolify server (or locally), make a test change and push:
+   ```bash
+   echo "Test update $(date)" >> vault-build/Clients/test-client.md
+   git add vault-build/Clients/test-client.md
+   git commit -m "Test: vault sync"
+   git push
+   ```
+
+2. On Mac Studio, verify the pipeline:
+   ```bash
+   # Within 60s: cron pulls the change
+   git log -1 --oneline  # Should show the test commit
+   
+   # Within 5s: fswatch detects the change and syncs to iCloud
+   cat ~/Library/Logs/agend-vault-sync.log  # Should show fswatch events
+   
+   # Check iCloud has the update
+   grep "Test update" ~/Library/Mobile\ Documents/iCloud~md~obsidian/Documents/AgendOps/Clients/test-client.md
+   ```
+
+3. On iPhone, open Obsidian → AgendOps vault → Clients folder
+   - The test-client.md should show the update within ~30 seconds
+
+**Success criteria:**
+- ✅ Git pull happens every minute
+- ✅ fswatch detects vault-build/ changes
+- ✅ Changes appear in iCloud within seconds
+- ✅ iPhone Obsidian shows updates within 30s total
+- ✅ No errors in any log files
+
+### Common Issues
+| Symptom | Check | Fix |
+|---------|-------|-----|
+| "ModuleNotFoundError: No module named 'ruamel'" | Using system Python instead of venv | Use `.venv/bin/python3` not `python3` |
+| Daemon not running | Check `~/Library/Logs/agend-vault-sync.err.log` | Re-run `bash mac/install-daemon.sh` |
+| Git not pulling | Check crontab with `crontab -l` | Re-add cron entry |
+| iCloud files are `.icloud` placeholders | Optimize Mac Storage evicted files | Right-click folder → Keep Downloaded |
+| Changes not syncing | Check fswatch is running | `ps aux | grep fswatch` |
