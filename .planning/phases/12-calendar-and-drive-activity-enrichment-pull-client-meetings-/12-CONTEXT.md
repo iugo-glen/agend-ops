@@ -30,6 +30,32 @@ Enrich the per-client Obsidian notes (built in Phase 10, frontmatter-extended in
 
 </domain>
 
+<architectural_decision>
+## Architectural Decision (locked 2026-05-03 post-research)
+
+**D-X1: Workspace client uses Google REST APIs directly via Python urllib + google-api-python-client, NOT the hardened-workspace MCP tools.**
+
+Background: gsd-phase-researcher discovered the hardened-workspace MCP returns formatted text strings (not JSON) and is a stdio-only local subprocess (not reachable via urllib like Phase 11's CM). The original CONTEXT.md framing — "uses the existing hardened-workspace MCP" — turns out to be ambiguous: the *trust boundary* is hardened-workspace's OAuth-authorized scope, but the *implementation mechanism* must be direct Google REST API calls.
+
+**Resolution:** Build `scripts/lib/workspace_client.py` that:
+1. Reads the OAuth token blob already minted by hardened-workspace at `~/.google_workspace_mcp/credentials/` (Coolify must have this populated — research-question Q3).
+2. Calls Google Calendar API and Google Drive API directly via `urllib.request` against `googleapis.com` endpoints, using the OAuth token in the `Authorization: Bearer` header.
+3. Mirrors `cm_client.py` shape exactly: single network seam (`_workspace_get`), retry wrapper (`call_with_retry` reuses existing 1s/5s/30s backoff), atomic cache I/O (`load_cache`/`write_cache` with per-tool keys), exception hierarchy (`WorkspaceTransportError`, `WorkspaceRpcError`, `WorkspaceRateLimitError`).
+
+**Trust-boundary verification:**
+- workspace_client.py MUST use a strict allowlist of HTTP endpoints (`calendar/v3/calendars/primary/events`, `drive/v3/files`, `drive/v3/files/{id}`) — no other Google API surfaces accessible.
+- The grep-lint test `TestWorkspaceClientEndpointAllowlist` verifies this in CI.
+- workspace_client.py MUST NOT import/exec any hardened-workspace MCP code — pure Python urllib, mirroring Phase 11's cm_client.py zero-extra-dep precedent.
+- Phase 11's Pitfall 1 (Mac never imports cm_client) extends: Mac never imports `workspace_client` either. Test `TestProjectionDoesNotImportWorkspace` enforces.
+
+**Why not Option B (MCP wrapper):** Hardened-workspace runs as stdio MCP — not reachable from a non-Claude-Code process like the cron-driven Coolify sync. Option A keeps sync runtime self-contained.
+
+**Why not Option C (re-spec via discuss-phase --reset):** The CONTEXT decisions D-A1 through D-D4 still hold semantically — only the implementation mechanism shifts. The research outcome surfaced an ambiguity, not a spec change.
+
+**Glen authorized this pivot 2026-05-03** ("Yes — proceed" on AskUserQuestion).
+
+</architectural_decision>
+
 <locked_from_prior_phases>
 ## Inherited (no re-decision needed)
 
@@ -55,15 +81,28 @@ These are SET by Phase 10 and Phase 11. The planner MUST honor them; the discuss
 
 - **D-A2: Calendar matching rule — strict attendee email domain match.** A calendar event is assigned to a client if AND ONLY IF at least one attendee's email host (the `@host` portion) matches a `client_domain` in `data/config/clients.jsonl` OR any of that client's `aliases[]`. No fuzzy title matching. No fallback. Mirrors the Phase 2 email triage rule exactly. **Multi-client meeting policy (planner decision):** if attendees span multiple clients, default to first-matching-client wins (using the alphabetical client_domain order for determinism); emit a `system`/`info` feed entry per occurrence so Glen can audit. The planner may upgrade this to a multi-client fan-out if it proves needed in practice.
 
-- **D-A3: Drive scope — research-time inspection.** Drive's actual top-level structure is unknown to this CONTEXT writer. The gsd-phase-researcher MUST inspect Glen's Drive (via `mcp__hardened-workspace__list_drive_items` at the root) and propose the canonical Clients folder path during research. Likely candidates: `/My Drive/Clients/`, `/Shared drives/Agend Clients/`. The planner produces a `DRIVE_CLIENTS_ROOT` constant from the researcher's findings. If no obvious folder exists, the researcher flags this as a blocking pre-condition (Glen creates `Clients/` and migrates content first) — Phase 12 cannot ship without a known path.
+- **D-A3: Drive scope — root-level + immediate subfolders, all of My Drive.** ~~~research-time inspection~~~ **REVISED 2026-05-03 after Drive inspection.** Glen's Drive root is flat (no `/Clients/` folder; ~100 items at root level, mix of proposals, financial docs, strategy notes). No reorganization is required pre-ship. `DRIVE_CLIENTS_ROOT` constant is REMOVED — replaced with a recursive scan starting at My Drive root, bounded by `_DRIVE_MAX_DEPTH = 3` and the D-D3 privacy filters. Shared Drives are out of scope (skipped) per D-A1's "Glen-primary" principle.
 
-- **D-A4: Drive matching rule — folder hierarchy is canonical.** Once `DRIVE_CLIENTS_ROOT` is established, each immediate subfolder under it represents one client. Subfolder name → matched against client_domain or aliases (case-insensitive substring with longest-match preference, mirrors `_clientid_to_slug` from Phase 11). No filename-based matching. No sharing-list-based matching. Docs at the root of `DRIVE_CLIENTS_ROOT` (not in any subfolder) → silently ignored, with one info-level feed entry per sync summarizing how many were skipped.
+- **D-A4: Drive matching rule — filename-based, with client-alias substring match + stop-list.** ~~~folder hierarchy is canonical~~~ **REVISED 2026-05-03 after Drive inspection.** Drive does not have per-client folder structure. Match a Drive file to a client when the filename (NOT path) contains a case-insensitive substring of `client_domain` (without TLD) OR any `aliases[]` entry. Examples from real Drive contents:
+  - `PCA-SCO-Gap-Analysis-v3.docx` → matches PCA (alias) → propertycouncil.com.au
+  - `OTA_SOW_v1.1.docx` → matches OTA (alias) → otaus.com.au
+  - `Agend x PCA SCO - Statement of Work v1.0` → matches PCA (alias)
+  - `iugo proposal for AI use within Country SA PHN - v1.0` → no client match (matches no client domain or alias)
+  - `Iugo_Pty_Ltd_-_Profit_and_Loss.xlsx` → STOP-LIST MATCH (Iugo is Glen's company, not a client) → silently ignored
+
+  **Stop-list of ambiguous tokens** (case-insensitive substring matches that DO NOT trigger client assignment): `agend`, `iugo`, `glen`, `rosie`. These appear in many filenames but are Glen's own brand/personal references. Matched-to-stop-list files are silently ignored, with one info-level feed entry per sync summarizing the count.
+
+  **Multi-client filename match** (e.g., `Agend-PCA-vs-ATEM-comparison.docx` matches both PCA and ATEM aliases): assign to the FIRST alias in left-to-right alphabetical alias order; emit a `system`/`info` feed entry per occurrence so Glen can audit. Mirrors D-A2's first-match-wins discipline.
+
+  **Filename match precedence:** longest alias match wins (e.g., if both `PCA` and `PCNZ` match, `PCNZ` wins because it's longer). Mirrors `_clientid_to_slug` longest-match logic from Phase 11.
+
+  **Word-boundary discipline:** match only at word boundaries (delimiters `_`, `-`, `.`, ` `, or string start/end). Prevents `STAV` (Science Teachers Australia Vic) from matching `staffing.docx`.
 
 ### Time window + freshness (Area 2)
 
 - **D-B1: Calendar window — rolling 90 days.** Pull events with `start.dateTime` between `now - 90 days` and `now + 30 days`. The forward window catches upcoming meetings (so glanceable on phone — "what's coming up with this client this month"). The backward window matches Glen's cognitive horizon for client history. Hardcoded constants in vault_writer config; no per-client override needed.
 
-- **D-B2: Drive window — top 20 by modifiedTime, no time bound.** Per client subfolder, list every file (recursively, but bounded by `_DRIVE_MAX_DEPTH` = 3 to prevent runaway), sort by `modifiedTime` desc, take the first 20. No "must be modified within N days" filter — if a client folder has a contract from 2024 sitting there, it still appears as long as it's in the top 20 by recency. The 20-cap keeps Activity Log sections phone-readable.
+- **D-B2: Drive window — top 20 per client by modifiedTime, no time bound.** Walk My Drive recursively (bounded by `_DRIVE_MAX_DEPTH = 3` per D-A3-REVISED), apply D-A4 filename matching to each file, group by matched client, then sort each client's bucket by `modifiedTime` desc and take the first 20. No "must be modified within N days" filter — if Glen has a 2024 contract sitting at root and it matches a client's alias, it appears as long as it's in that client's top 20 by recency. The 20-cap keeps Activity Log sections phone-readable.
 
 - **D-B3: Cadence — every sync run, like Phase 11.** Calendar + Drive reads happen on every `sync-obsidian.sh --backfill` invocation, alongside the existing Phase 11 CM read. All three (CM, Cal, Drive) share the retry+cache+warning pattern from D-A3 of Phase 11 (now generalized). No separate cron, no daily-only cadence. Phone-glanceable means current-state-on-every-sync, not "current as of yesterday's batch".
 
