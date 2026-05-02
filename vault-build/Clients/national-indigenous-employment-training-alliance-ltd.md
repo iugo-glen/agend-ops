@@ -1,13 +1,16 @@
 ---
-domain: atem.org.au
-client_name: Association for Tertiary Education Management
+domain: nieta.org.au
+client_name: National Indigenous Employment & Training Alliance Ltd
 status: active
 last_synced: '2026-05-03T07:18:38+10:00'
-contract_start: '2026-03-11'
+contract_start: '2024-12-09'
 contract_end: ''
-primary_contact: David Hathaway
+primary_contact: Kylie Penehoe
 deployed_modules:
-  - Agend AMS Proposal for ATEM
+  - Agend AMS Implementation & ongoing fees
+  - CR- Additional Hours - Final Implementation Phase
+  - Change Request - EOI & Member Forms
+  - Support Block Hours - Training & Ad Hoc
 sites: []
 ---
 ## Overview
@@ -39,9 +42,13 @@ _(no usage data)_
 <!-- ACTIVITY-LOG-START -->
 ## Activity Log
 
-### [2026-03-23 10:49] 📧 Re: FW: Signed agreement
-> informational · Check in with Manju re ATEM onboarding connection this week
-> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d09db3176e3eac)
+### [2026-03-22 23:27] 📧 Re: Couple of things
+> needs-response · Follow up on NIETA new tranche of work (learning + website)
+> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d0e1f361aa0c8b)
+
+### [2026-03-22 22:47] 📧 Re: Couple of things
+> urgent · Reply to Simon re fees being sorted next week AP run
+> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d0e1f361aa0c8b)
 <!-- ACTIVITY-LOG-END -->
 
 ## Decisions

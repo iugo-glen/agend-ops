@@ -2,7 +2,7 @@
 domain: ''
 client_name: Unknown
 status: unknown
-last_synced: '2026-05-03T07:04:05+10:00'
+last_synced: '2026-05-03T07:18:38+10:00'
 ---
 ## Overview
 
@@ -36,14 +36,6 @@ _(no usage data)_
 ### Group: Australian Human Resources Institute (1 records)
 ### [2026-03-23 20:23] ✅ task-2026-03-23-018 pending — Kick off AHRI Agend implementation project onboarding (AHRI accepted proposal...
 
-### Group: Australian Human Resources Institute (AHRI) (1 records)
-### [2026-03-25 00:00] 💰 INV-0758 overdue (24d) — $1194
-> source: contract-manager · severity: warning
-
-### Group: Australian Institute of Quantity Surveyors (AIQS) (1 records)
-### [2026-04-01 00:00] 💰 INV-0779 overdue (17d) — $142.5
-> source: contract-manager · severity: warning
-
 ### Group: Australian Veterinary Association (4 records)
 ### [2026-03-23 12:44] ✅ task-2026-03-23-007 pending — Kick off AVA Agend Implementation project onboarding (from Ignition @ Austral...
 
@@ -61,28 +53,6 @@ _(no usage data)_
 ### [2026-04-01 00:00] 💰 INV-0783 overdue (17d) — $7267.5
 > source: contract-manager · severity: warning
 
-### Group: Independent Schools of NSW Ltd (ISNSW) (4 records)
-### [2026-04-01 00:00] 💰 INV-0794 overdue (17d) — $516
-> source: contract-manager · severity: warning
-
-### [2026-04-01 00:00] 💰 INV-0787 overdue (17d) — $2614.5
-> source: contract-manager · severity: warning
-
-### [2026-03-25 00:00] 💰 INV-0756 overdue (24d) — $1295.8
-> source: contract-manager · severity: warning
-
-### [2026-03-25 00:00] 💰 INV-0750 overdue (24d) — $3704
-> source: contract-manager · severity: warning
-
-### Group: NIETA (2 records)
-### [2026-03-22 23:27] 📧 Re: Couple of things
-> needs-response · Follow up on NIETA new tranche of work (learning + website)
-> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d0e1f361aa0c8b)
-
-### [2026-03-22 22:47] 📧 Re: Couple of things
-> urgent · Reply to Simon re fees being sorted next week AP run
-> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d0e1f361aa0c8b)
-
 ### Group: Occupational Therapy Australia (1 records)
 ### [2026-03-23 12:44] ✅ task-2026-03-23-008 pending — Kick off OTA Agend Implementation project onboarding (from Ignition @ Occupat...
 
@@ -95,22 +65,6 @@ _(no usage data)_
 
 ### [2026-03-23 12:27] ✅ task-2026-03-23-001 completed — Summarize the PCA SOW review email from Greg Davenport
 > Document summary: PCA Shopping Centre Online SOW review thread -- 4-email thread with background reports and annotated SOW for Tuesday meeting
-
-### Group: TACTIC (1 records)
-### [2026-04-01 00:00] 💰 INV-0789 overdue (17d) — $1178
-> source: contract-manager · severity: warning
-
-### Group: Victorian Association of Secondary School Prinicpals (VASSP) (1 records)
-### [2026-04-01 00:00] 💰 INV-0790 overdue (17d) — $1115.3
-> source: contract-manager · severity: warning
-
-### Group: Visual Media Association (VMA) (1 records)
-### [2026-04-01 00:00] 💰 INV-0782 overdue (17d) — $8061.7
-> source: contract-manager · severity: warning
-
-### Group: Waste Management and Resource Recovery Association of Australia (WMRR) (1 records)
-### [2026-03-25 00:00] 💰 INV-0757 overdue (24d) — $1219.8
-> source: contract-manager · severity: warning
 
 ### Group: dca.org.au (1 records)
 ### [2026-03-23 05:14] 📧 RE: Agend upcoming products

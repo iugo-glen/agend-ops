@@ -2,7 +2,7 @@
 domain: propertycouncil.com.au
 client_name: Property Council Australia
 status: active
-last_synced: '2026-05-03T07:04:05+10:00'
+last_synced: '2026-05-03T07:18:38+10:00'
 contract_start: '2025-04-01'
 contract_end: ''
 primary_contact: Craig Horton

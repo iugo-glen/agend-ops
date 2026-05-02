@@ -1,13 +1,26 @@
 ---
-domain: atem.org.au
-client_name: Association for Tertiary Education Management
+domain: ahri.com.au
+client_name: Australian Human Resources Institute
 status: active
 last_synced: '2026-05-03T07:18:38+10:00'
-contract_start: '2026-03-11'
+contract_start: '2024-02-01'
 contract_end: ''
-primary_contact: David Hathaway
+primary_contact: Phillip Harris
 deployed_modules:
-  - Agend AMS Proposal for ATEM
+  - AHRI - Block of Hours (Options)
+  - AHRI Certification Project - Scoping
+  - AHRI Company Contact - Customisation
+  - AHRI Group Registrations
+  - AHRI HRM ONLINE Implementation
+  - AHRI HRM Online Project - Scoping
+  - AHRI Subscription Management
+  - Additional staging environment
+  - Agend Member Portal - Annual Services
+  - Annual Licence - Google Tag Manager
+  - HRM online - Investigation
+  - Production SSO premium inc ongoing fees
+  - SSO premium 2000 user Upgrade - Prorate
+  - SSO premium inc ongoing fees
 sites: []
 ---
 ## Overview
@@ -39,9 +52,8 @@ _(no usage data)_
 <!-- ACTIVITY-LOG-START -->
 ## Activity Log
 
-### [2026-03-23 10:49] 📧 Re: FW: Signed agreement
-> informational · Check in with Manju re ATEM onboarding connection this week
-> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d09db3176e3eac)
+### [2026-03-25 00:00] 💰 INV-0758 overdue (24d) — $1194
+> source: contract-manager · severity: warning
 <!-- ACTIVITY-LOG-END -->
 
 ## Decisions

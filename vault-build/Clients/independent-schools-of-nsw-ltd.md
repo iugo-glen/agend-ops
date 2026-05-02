@@ -1,13 +1,21 @@
 ---
-domain: atem.org.au
-client_name: Association for Tertiary Education Management
+domain: aisnsw.edu.au
+client_name: Independent Schools of NSW Ltd
 status: active
 last_synced: '2026-05-03T07:18:38+10:00'
-contract_start: '2026-03-11'
+contract_start: '2024-03-18'
 contract_end: ''
-primary_contact: David Hathaway
+primary_contact: Adam Abbate
 deployed_modules:
-  - Agend AMS Proposal for ATEM
+  - AISNSW Website Design
+  - Agend SAML SSO IDP Business Setup Fee - once off
+  - Block of Hours
+  - ISNSW Post-go-live Support
+  - ISNSW – Agend Event Carousel Update
+  - RecruitED - Advanced Advertising Platform
+  - RecruitED - Rebranding Support
+  - Recruitment portal implementation & hosting
+  - SOW for implementation of Agend
 sites: []
 ---
 ## Overview
@@ -39,9 +47,17 @@ _(no usage data)_
 <!-- ACTIVITY-LOG-START -->
 ## Activity Log
 
-### [2026-03-23 10:49] 📧 Re: FW: Signed agreement
-> informational · Check in with Manju re ATEM onboarding connection this week
-> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d09db3176e3eac)
+### [2026-04-01 00:00] 💰 INV-0794 overdue (17d) — $516
+> source: contract-manager · severity: warning
+
+### [2026-04-01 00:00] 💰 INV-0787 overdue (17d) — $2614.5
+> source: contract-manager · severity: warning
+
+### [2026-03-25 00:00] 💰 INV-0756 overdue (24d) — $1295.8
+> source: contract-manager · severity: warning
+
+### [2026-03-25 00:00] 💰 INV-0750 overdue (24d) — $3704
+> source: contract-manager · severity: warning
 <!-- ACTIVITY-LOG-END -->
 
 ## Decisions

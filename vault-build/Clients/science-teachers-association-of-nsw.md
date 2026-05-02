@@ -1,13 +1,22 @@
 ---
-domain: atem.org.au
-client_name: Association for Tertiary Education Management
+domain: stansw.asn.au
+client_name: Science Teachers Association of NSW
 status: active
 last_synced: '2026-05-03T07:18:38+10:00'
-contract_start: '2026-03-11'
+contract_start: '2025-01-01'
 contract_end: ''
-primary_contact: David Hathaway
+primary_contact: Irene Tasevska
 deployed_modules:
-  - Agend AMS Proposal for ATEM
+  - Agend AMS implementation & licensing
+  - Block of Hours - 5
+  - Change Request - 15 Hours STANSW
+  - Change Request - Go-live Preparation
+  - Cvent SSO Integration - STANSW
+  - Renewal of Agend AMS implementation & licensing
+  - STANSW - Block of Hours
+  - STANSW - CR 3
+  - STANSW - CR4 Go-live Assistance
+  - STANSW - Deployment & Post Deployment Support
 sites: []
 ---
 ## Overview
@@ -39,9 +48,7 @@ _(no usage data)_
 <!-- ACTIVITY-LOG-START -->
 ## Activity Log
 
-### [2026-03-23 10:49] 📧 Re: FW: Signed agreement
-> informational · Check in with Manju re ATEM onboarding connection this week
-> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d09db3176e3eac)
+<!-- No activity logged for this client yet -->
 <!-- ACTIVITY-LOG-END -->
 
 ## Decisions

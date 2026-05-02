@@ -1,13 +1,21 @@
 ---
-domain: atem.org.au
-client_name: Association for Tertiary Education Management
+domain: theahc.org.au
+client_name: The Australian Hairdressing Council
 status: active
 last_synced: '2026-05-03T07:18:38+10:00'
-contract_start: '2026-03-11'
+contract_start: '2024-12-21'
 contract_end: ''
-primary_contact: David Hathaway
+primary_contact: Michelle Kellick
 deployed_modules:
-  - Agend AMS Proposal for ATEM
+  - AHC - 30 hours Project Support Block
+  - AHC - Block of Hours Proposal
+  - AHC - Priority Support (Support Overage)
+  - AHC - Priority Support – One-Off Request
+  - AHC - Training and Member Resources Enhancements
+  - Agend AMS Implementation & Ongoing Fees
+  - 'CR01 : New membership and form creation'
+  - Renewal of Agend AMS Implementation & Ongoing Fees
+  - '[AHC-BLOCK] Block of Hours - 5'
 sites: []
 ---
 ## Overview
@@ -39,9 +47,7 @@ _(no usage data)_
 <!-- ACTIVITY-LOG-START -->
 ## Activity Log
 
-### [2026-03-23 10:49] 📧 Re: FW: Signed agreement
-> informational · Check in with Manju re ATEM onboarding connection this week
-> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d09db3176e3eac)
+<!-- No activity logged for this client yet -->
 <!-- ACTIVITY-LOG-END -->
 
 ## Decisions

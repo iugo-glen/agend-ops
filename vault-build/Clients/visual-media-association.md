@@ -1,13 +1,13 @@
 ---
-domain: atem.org.au
-client_name: Association for Tertiary Education Management
+domain: visualmediaassociation.org.au
+client_name: Visual Media Association
 status: active
 last_synced: '2026-05-03T07:18:38+10:00'
-contract_start: '2026-03-11'
+contract_start: '2025-09-16'
 contract_end: ''
-primary_contact: David Hathaway
+primary_contact: Kellie Norwthwood
 deployed_modules:
-  - Agend AMS Proposal for ATEM
+  - Agend AMS Proposal for VMA
 sites: []
 ---
 ## Overview
@@ -39,9 +39,8 @@ _(no usage data)_
 <!-- ACTIVITY-LOG-START -->
 ## Activity Log
 
-### [2026-03-23 10:49] 📧 Re: FW: Signed agreement
-> informational · Check in with Manju re ATEM onboarding connection this week
-> [Open thread](https://mail.google.com/mail/u/0/#inbox/19d09db3176e3eac)
+### [2026-04-01 00:00] 💰 INV-0782 overdue (17d) — $8061.7
+> source: contract-manager · severity: warning
 <!-- ACTIVITY-LOG-END -->
 
 ## Decisions
