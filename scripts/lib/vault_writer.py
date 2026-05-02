@@ -780,6 +780,102 @@ def run_incremental(data_root: Path, build_root: Path, record_type: str = "all",
 
 
 # =========================================================================
+# Phase 11: map-cm-clients mode (D-G1 — mandatory mapping pass)
+# =========================================================================
+
+
+def run_map_cm_clients(data_root: Path, dry_run: bool = False,
+                       feed_path: Path | None = None) -> dict:
+    """Resolve client_domain → cm_client_id and write back to clients.jsonl.
+
+    D-G1 (mandatory). Idempotent: re-runs are safe; updates IDs if CM IDs change.
+    Records that already have `cm_client_id` are NOT re-queried (to respect CM
+    rate limit and to avoid spurious changes).
+
+    Per-client try/except: a CmTransportError on one domain logs a warning feed
+    entry (level=warning, requires Plan 01 schema extension) and continues.
+
+    Returns: `{"queried": int, "mapped": int, "unchanged": int, "failed": int}`.
+    """
+    # Lazy import: cm_client must NOT be loaded at module top so the Mac Studio
+    # daemon's project-to-icloud path never imports it (Pitfall 1, T-11-02-08).
+    from . import cm_client as _cm
+    search_clients_for_domain = _cm.search_clients_for_domain
+    CmTransportError = _cm.CmTransportError
+    CmRpcError = _cm.CmRpcError
+
+    if feed_path is None:
+        feed_path = data_root / "feed.jsonl"
+
+    api_key = os.environ.get("CONTRACT_MANAGER_API_KEY", "")
+    if not api_key:
+        raise RuntimeError(
+            "CONTRACT_MANAGER_API_KEY env var is required for --mode map-cm-clients"
+        )
+
+    clients_path = data_root / "config" / "clients.jsonl"
+    if not clients_path.exists():
+        raise FileNotFoundError(f"clients.jsonl not found at {clients_path}")
+
+    records: list[dict] = list(stream_ndjson(clients_path))
+    stats = {"queried": 0, "mapped": 0, "unchanged": 0, "failed": 0}
+
+    for rec in records:
+        domain = rec.get("domain") or ""
+        if not domain:
+            continue
+        if rec.get("cm_client_id") is not None:
+            stats["unchanged"] += 1
+            continue
+        if dry_run:
+            print(f"[dry-run] would search_clients_for_domain({domain!r})")
+            stats["queried"] += 1
+            continue
+        stats["queried"] += 1
+        try:
+            cm_id = search_clients_for_domain(domain, api_key)
+        except (CmTransportError, CmRpcError) as e:
+            stats["failed"] += 1
+            append_feed_entry(
+                {
+                    "ts": now_iso_with_offset(),
+                    "type": "system",
+                    "summary": f"map-cm-clients: failed for {domain} ({type(e).__name__})",
+                    "level": "warning",
+                    "trigger": "manual",
+                    "details": {"domain": domain, "error": str(e)},
+                },
+                feed_path=feed_path,
+            )
+            print(f"WARN: map-cm-clients failed for {domain}: {e}", file=sys.stderr)
+            continue
+        if cm_id is None:
+            stats["failed"] += 1
+            append_feed_entry(
+                {
+                    "ts": now_iso_with_offset(),
+                    "type": "system",
+                    "summary": f"map-cm-clients: no CM match for {domain}",
+                    "level": "warning",
+                    "trigger": "manual",
+                    "details": {"domain": domain},
+                },
+                feed_path=feed_path,
+            )
+            print(f"WARN: no CM match for {domain}", file=sys.stderr)
+            continue
+        rec["cm_client_id"] = cm_id
+        stats["mapped"] += 1
+
+    if not dry_run:
+        # Atomic rewrite of full file (Pattern 1 / RESEARCH Anti-Patterns line 251)
+        body = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
+        _atomic_write(clients_path, body)
+
+    return stats
+
+
+# =========================================================================
 # Plan 04: project-to-icloud mode (D-03 Mac Studio daemon support)
 # =========================================================================
 
@@ -1130,7 +1226,7 @@ def main() -> None:
     p = argparse.ArgumentParser(prog="vault_writer")
     p.add_argument(
         "--mode",
-        choices=["backfill", "incremental", "project-to-icloud"],
+        choices=["backfill", "incremental", "project-to-icloud", "map-cm-clients"],
         required=True,
     )
     p.add_argument("--data-root", default=Path("data"), type=Path)
@@ -1174,6 +1270,9 @@ def main() -> None:
             # --build-root values).
             stats = run_projection(args.build_root, args.icloud_root,
                                    dry_run=args.dry_run, feed_path=feed_path)
+        elif args.mode == "map-cm-clients":
+            stats = run_map_cm_clients(args.data_root,
+                                       dry_run=args.dry_run, feed_path=feed_path)
         else:
             stats = run_incremental(args.data_root, args.build_root,
                                     record_type=args.record_type,
@@ -1213,7 +1312,9 @@ __all__ = [
     "load_clients", "stream_ndjson", "d10_triage_filter",
     "render_open_items", "render_activity_log", "render_frontmatter",
     "render_unknown_note", "build_note_initial_markdown",
-    "run_backfill", "run_incremental", "run_projection", "main",
+    "run_backfill", "run_incremental", "run_projection",
+    "run_map_cm_clients",
+    "main",
 ]
 
 
