@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/glenr/work/todo-list/mac/vault-sync-watcher.sh</string>
+        <string>/Users/glenr/work/agend-ops/mac/vault-sync-watcher.sh</string>
     </array>
 
     <key>StandardOutPath</key>

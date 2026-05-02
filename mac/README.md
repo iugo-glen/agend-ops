@@ -16,11 +16,11 @@ SLA target: <30s end-to-end from Coolify commit to iPhone visibility.
 
 `scripts/sync-obsidian.sh` is the Coolify (Linux) wrapper. It requires util-linux's `flock`, which is NOT installed by default on macOS, AND it includes a portability guard that aborts loud-fast when flock is missing.
 
-On Mac, invoke vault_writer directly:
+On Mac, invoke vault_writer directly (using the virtual environment created by the installer):
 
 ```bash
-cd /Users/glenr/work/todo-list
-python3 -m scripts.lib.vault_writer --mode incremental \
+cd /Users/glenr/work/agend-ops
+.venv/bin/python3 -m scripts.lib.vault_writer --mode incremental \
   --build-root "$PWD/vault-build" \
   --data-root "$PWD/data"
 ```
@@ -28,7 +28,7 @@ python3 -m scripts.lib.vault_writer --mode incremental \
 For projection (vault-build/ → iCloud), use:
 
 ```bash
-python3 -m scripts.lib.vault_writer --mode project-to-icloud \
+.venv/bin/python3 -m scripts.lib.vault_writer --mode project-to-icloud \
   --build-root "$PWD/vault-build" \
   --data-root "$PWD/data"
 ```
@@ -45,6 +45,13 @@ bash mac/install-daemon.sh
 ```
 
 The installer is idempotent; re-running is safe.
+
+**What the installer does:**
+1. Installs `fswatch` via Homebrew (if missing)
+2. Creates a Python virtual environment at `.venv/` in the repo root
+3. Installs Python dependencies (`ruamel.yaml`) into the virtual environment
+4. Installs the LaunchAgent plist to `~/Library/LaunchAgents/`
+5. Loads and starts the daemon
 
 ## Configure git pull cadence (cron)
 
@@ -77,8 +84,8 @@ Alternative: System Settings → Apple ID → iCloud → iCloud Drive → Optimi
 To force a projection without waiting for fswatch:
 
 ```bash
-cd /Users/glenr/work/todo-list
-python3 -m scripts.lib.vault_writer --mode project-to-icloud \
+cd /Users/glenr/work/agend-ops
+.venv/bin/python3 -m scripts.lib.vault_writer --mode project-to-icloud \
   --build-root "$PWD/vault-build" --data-root "$PWD/data"
 ```
 
@@ -101,7 +108,7 @@ Expect a line like `42 0 com.agend.vault-sync` (PID, last-exit-status, label).
 Daemon stopped or repeatedly crashing:
 - Check `agend-vault-sync.err.log` for the failure reason.
 - Common: fswatch not on PATH (try `brew reinstall fswatch`).
-- Common: Python import error (try `pip3 install -r scripts/requirements.txt`).
+- Common: Python import error (re-run `bash mac/install-daemon.sh` to recreate the virtual environment).
 
 To force-reload after editing the plist:
 ```bash
