@@ -3,16 +3,28 @@ status: partial
 phase: 11-contract-manager-integration-seed-and-refresh-client-note-fr
 source: [11-VERIFICATION.md]
 started: 2026-05-02T23:51:27+09:30
-updated: 2026-05-02T23:51:27+09:30
+updated: 2026-05-03T00:30:00+09:30
 ---
 
 ## Current Test
 
-[awaiting human testing — Glen will perform after Phase 11 ships per "don't stop! I'll add keys later" override 2026-05-02]
+Item 2 (live CM-aware backfill on Coolify + iPhone Obsidian verify) blocked: Coolify host lacks ruamel.yaml. Pre-existing deployment gap (not phase 11 introduced). Resolution path: install ruamel system-wide (`apt install python3-ruamel.yaml` or pip) OR set up dedicated Python runtime/container. Tracked for follow-up.
 
 ## Tests
 
-### 1. Mint CM API key + run mapping pass on Coolify (Plan 02 Task 3)
+### 1. Mint CM API key + run mapping pass on Coolify (Plan 02 Task 3) — ✅ PASSED 2026-05-03
+
+result: passed (2026-05-03; commit ffc4806)
+- Glen minted CM API key at https://contracts.agend.info/settings/mcp 2026-05-03
+- Glen injected CONTRACT_MANAGER_API_KEY into Coolify agend-ops service env
+- Mapping pass run on Mac instead of Coolify (Pitfall 1 deviation accepted; Coolify host lacks ruamel.yaml — see Current Test note above)
+- Result: queried=3, mapped=3, unchanged=0, failed=0
+  - propertycouncil.com.au → cm_client_id 18
+  - atem.org.au → cm_client_id 1
+  - otaus.com.au → cm_client_id 225
+- data/config/clients.jsonl committed (ffc4806) and pushed; Coolify synced
+
+original expected steps below (kept for audit):
 
 expected:
 1. Mint a CM API key at `https://contracts.agend.info/settings/mcp` (UI shows plaintext exactly once; bcrypt-hashed server-side; format `cm_live_<48_hex>`).
@@ -31,7 +43,17 @@ expected:
 
 result: [pending]
 
-### 2. End-to-end CM-aware backfill on Coolify + iPhone Obsidian visual verification (Plan 04 Task 3)
+### 2. End-to-end CM-aware backfill on Coolify + iPhone Obsidian visual verification (Plan 04 Task 3) — ⚠️ BLOCKED 2026-05-03
+
+result: blocked (2026-05-03)
+- Coolify host is missing ruamel.yaml (pre-existing gap, not introduced by phase 11)
+- The agend-ops Coolify service is a Node/JS dashboard container — no Python at all
+- The vault_writer.py needs to run somewhere with `from ruamel.yaml import YAML`
+- Resolution options: (a) install ruamel system-wide on Coolify host via apt or pip; (b) build a dedicated Python sidecar container; (c) keep the sync running on Mac and accept the Pitfall 1 deviation as the steady-state model
+- Until resolved: cannot run `bash scripts/sync-obsidian.sh --backfill` on Coolify
+- Code path is fully proven by 17 mocked-CM unit tests — only the live infrastructure verification is blocked
+
+original expected steps below (kept for audit):
 
 expected:
 1. SSH to Coolify and confirm `CONTRACT_MANAGER_API_KEY` is exported (`echo "${CONTRACT_MANAGER_API_KEY:0:8}..."` shows prefix only).
@@ -58,12 +80,12 @@ result: [pending]
 ## Summary
 
 total: 2
-passed: 0
+passed: 1
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
-blocked: 0
+blocked: 1
 
 ## Gaps
 
-(None — both items are deferred-by-design per Glen 2026-05-02 AUTO_MODE override. Code paths are proven by 17 mocked-CM unit tests across 6 integration test classes; the deferred items are LIVE infrastructure verifications that require the real CM API key Glen mints in step 1.)
+- **Coolify Python runtime gap (pre-existing, surfaced 2026-05-03):** Coolify host lacks `ruamel.yaml`; the agend-ops Coolify service is a Node/JS dashboard container with no Python. The phase 11 (and arguably phase 10) sync was never actually runnable on Coolify in current form. Item 2 (live backfill + iPhone verify) is blocked until this is resolved. Mapping pass (item 1) was run from Mac as a one-time deviation. Recommend follow-up phase to set up Coolify Python runtime properly OR adopt Mac-as-sync-host as steady state.
