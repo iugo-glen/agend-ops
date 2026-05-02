@@ -230,3 +230,36 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 12 to break down)
+
+## Backlog
+
+### Phase 999.1: Capability Index Vault — graphify-driven RFP response system (BACKLOG)
+
+**Goal:** Index every Agend Systems app (internal modules + select client deployments) with [graphify](https://github.com/safishamsi/graphify), then layer Claude-extracted capability frontmatter (`capabilities[]`, `deployed_at[]`, `maturity`, `stack`, `last_indexed`) into `vault-build/Projects/<slug>.md`. Surfaces in iCloud Obsidian for mobile RFP prep AND becomes a Claude-readable corpus for "what do we have that solves X" queries during sales response. Mirrors the Phase 10 client-note marker pattern.
+
+**Three-layer architecture:**
+- **Layer 1** — graphify raw extraction (free, deterministic, tree-sitter AST + Claude subagents over docs)
+- **Layer 2** — opinionated capability index (the moat: `Capabilities.md` controlled vocabulary + structured frontmatter)
+- **Layer 3** — query surface (Obsidian DataView + Claude Desktop reading the vault)
+
+**Phase shape (when promoted):**
+1. `Capabilities.md` controlled vocabulary + tag schema
+2. Extend `vault_writer.py` with `Projects/` mode (mirrors `Clients/` pattern from Phase 10)
+3. `scripts/index-project.sh` wrapper — runs graphify, then Claude subagent that writes capability frontmatter
+4. First 5 projects indexed end-to-end (most-pitched apps)
+5. Real RFP test — time vault-assisted response vs without; ROI proof gate
+
+**Hard questions to resolve in /gsd-discuss-phase:**
+- Privacy boundary: do we index client deployment code (graphify subagents see source) or internal-only?
+- Capability tag governance: Claude proposes vs Glen confirms; freshness vs accuracy tradeoff
+- Freshness gate: must not claim capabilities from stale indexes in sales docs
+
+**Trigger condition:** Revisit during v3.0 milestone planning, after Phase 10 (Obsidian client notes) is verified AND at least one real RFP response has tested the manual workflow (manually drop graphify output into iCloud, see if it actually helps draft a response).
+
+**Why backlog and not active:** Strong ROI case (one won deal pays for years of indexing) but unproven without manual spike. Don't build the pipeline before validating the value.
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `/gsd-review-backlog` when ready)
