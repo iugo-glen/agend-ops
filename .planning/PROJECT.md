@@ -33,6 +33,7 @@ Offload cognitive load — Claude handles email triage and task execution so Gle
 - GitHub Pages dashboard auto-deployed from docs/ — Phase 4
 - Mobile-first responsive dashboard (tabs on phone, Kanban on desktop) — Phase 4
 - Notion-style aesthetics with system auto dark/light mode — Phase 4
+- Contract Manager MCP integration: domain → cm_client_id mapping (D-G1 + JIT fallback), CM-aware run_backfill with cache fallback + cm_data_stale_since stamping, contract events 📄 in Activity Log, CM-tracked invoice merge (Pitfall 4 case-fold + trim dedup), CM-TODOS + USAGE managed sections, Pitfall 1 enforced (Mac never imports cm_client) — Phase 11 (live mapping pass + iPhone visual verification deferred per Glen 2026-05-02 override; tracked in 11-HUMAN-UAT.md)
 
 ### Active
 
@@ -107,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-02 after Phase 10 (Obsidian client-notes vault) completed — INTL-01 (context accumulation in structured per-client files) now satisfied; iPhone Obsidian reads live from iCloud canonical vault projected from vault-build/ via Mac Studio LaunchAgent.*
+*Last updated: 2026-05-02 after Phase 11 (Contract Manager Integration) completed — INTL-01 (extended) now also satisfied at the contract data layer; cm_client.py JSON-RPC seam + run_backfill orchestration land production-ready code with 17 mocked-CM tests (74 total) on master. Live CM-key mint + iPhone Obsidian visual verification deferred to post-build per Glen 2026-05-02 "don't stop! I'll add keys later" override; tracked in 11-HUMAN-UAT.md.*
