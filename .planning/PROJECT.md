@@ -107,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after v2.0 milestone start*
+*Last updated: 2026-05-02 after Phase 10 (Obsidian client-notes vault) completed — INTL-01 (context accumulation in structured per-client files) now satisfied; iPhone Obsidian reads live from iCloud canonical vault projected from vault-build/ via Mac Studio LaunchAgent.*
