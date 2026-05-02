@@ -93,7 +93,7 @@ Plans:
 - [x] **Phase 7: Invoice Tracking** - /invoice commands, triage pipeline hook, Xero sync, and dashboard invoice tab (completed 2026-03-23)
 - [x] **Phase 8: Interactive Dashboard** - Next.js on Coolify with auth, actions, and live data (completed 2026-03-25)
 - [ ] **Phase 9: Telegram Mobile Commands** - Two-way command execution and approval flow from phone (deferred to v3.0)
-- [ ] **Phase 10: Obsidian Knowledge Layer — Client Notes** - Per-client markdown vault sourced from data/ NDJSON; iCloud canonical, Mac Studio launchd daemon projects updates
+- [x] **Phase 10: Obsidian Knowledge Layer — Client Notes** - Per-client markdown vault sourced from data/ NDJSON; iCloud canonical, Mac Studio launchd daemon projects updates (completed 2026-05-02)
 - [ ] **Phase 11: Contract Manager Integration** - Seed/refresh frontmatter and log contract events from contracts.agend.info MCP
 - [ ] **Phase 12: Calendar + Drive Activity Enrichment** - Pull meetings + documents matched to clients via existing hardened-workspace MCP
 
@@ -192,7 +192,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 10 -> 11 -> 12 (Phase 9 def
 | 7. Invoice Tracking | v2.0 | 3/3 | Complete | 2026-03-23 |
 | 8. Interactive Dashboard | v2.0 | 4/4 | Complete | 2026-03-25 |
 | 9. Telegram (deferred) | v3.0 | 0/? | Not started | - |
-| 10. Obsidian Knowledge Layer | v2.0 | 4/5 | In Progress|  |
+| 10. Obsidian Knowledge Layer | v2.0 | 5/5 | Complete    | 2026-05-02 |
 | 11. Contract Manager Integration | v2.0 | 0/? | Queued | - |
 | 12. Calendar + Drive Enrichment | v2.0 | 0/? | Queued | - |
 
@@ -201,7 +201,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 10 -> 11 -> 12 (Phase 9 def
 **Goal:** Build a per-client markdown knowledge base in an iCloud Obsidian vault. Backfill from `data/` NDJSON history; auto-append on new triage / task / invoice events. Each canonical client gets one durable note accumulating context (status, recent activity, open items) that's mobile-readable on iPhone and updates automatically via a Mac Studio launchd daemon. Scope: client notes only — project portfolio, daily notes, and inbox bridge are deferred.
 **Requirements**: INTL-01 (Context accumulation — client history, past decisions stored in structured files)
 **Depends on:** Phase 8 (action queue + dashboard data layer reused)
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 **Canonical refs:** `.planning/phases/10-obsidian-knowledge-layer-client-notes-build-a-vault-side-cli/10-CONTEXT.md`
 
 Plans:
@@ -209,7 +209,7 @@ Plans:
 - [x] 10-02-PLAN.md — vault_writer.py sync engine: slugify, marker splice, atomic write, backfill, incremental, frontmatter round-trip
 - [x] 10-03-PLAN.md — Coolify integration: /sync-obsidian command + flock wrapper, slash command hooks, push-and-sync annotation
 - [x] 10-04-PLAN.md — Mac Studio daemon: project-to-icloud mode, LaunchAgent plist, fswatch wrapper, idempotent installer, README
-- [ ] 10-05-PLAN.md — End-to-end backfill execution + Mac install + iPhone verification
+- [x] 10-05-PLAN.md — End-to-end backfill execution + Mac install + iPhone verification
 
 ### Phase 11: Contract Manager Integration
 
