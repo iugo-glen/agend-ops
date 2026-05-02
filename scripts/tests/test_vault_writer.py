@@ -218,12 +218,19 @@ class TestBackfillIdempotent(unittest.TestCase):
             self.assertEqual(first, second)
 
     def _snapshot_managed(self, build_root: Path) -> dict:
-        """Read each .md and strip last_synced line for comparison."""
+        """Read each .md and strip last_synced + cm_data_stale_since lines for comparison.
+
+        Phase 11 extension: also strip cm_data_stale_since since it is a
+        cache-fallback signal that changes between runs depending on cache
+        state (D-A3). The idempotency contract is "managed-section content
+        is byte-identical modulo per-run trust signals".
+        """
         out = {}
         for md in sorted((build_root / "Clients").glob("*.md")):
             lines = md.read_text(encoding="utf-8").splitlines()
-            # Drop any line beginning with 'last_synced:' inside frontmatter
-            filtered = [ln for ln in lines if not ln.startswith("last_synced:")]
+            filtered = [ln for ln in lines
+                        if not ln.startswith("last_synced:")
+                        and not ln.startswith("cm_data_stale_since:")]
             out[md.name] = "\n".join(filtered)
         return out
 
@@ -945,6 +952,358 @@ class TestContractMerge(unittest.TestCase):
         self.assertIn("source: contract-manager", detail)
         self.assertIn("https://contracts.agend.info/contracts/1", detail)
         self.assertIsNone(ttid)
+
+
+class TestProjectionDoesNotImportCm(unittest.TestCase):
+    """Pitfall 1: Mac daemon's run_projection MUST NOT import scripts.lib.cm_client.
+
+    Verified by spawning a fresh Python subprocess so module-cache state is clean
+    (an in-process test could see cm_client in sys.modules from earlier test
+    classes that did import it).
+    """
+
+    def test_projection_does_not_import_cm_client(self):
+        with tempfile.TemporaryDirectory() as build, tempfile.TemporaryDirectory() as icloud:
+            (Path(build) / "Clients").mkdir()
+            code = (
+                "import sys; "
+                "from scripts.lib.vault_writer import run_projection; "
+                f"run_projection(__import__('pathlib').Path({build!r}), "
+                f"__import__('pathlib').Path({icloud!r}), dry_run=True); "
+                "print('CMCLIENT_LOADED' if 'scripts.lib.cm_client' in sys.modules "
+                "else 'CMCLIENT_NOT_LOADED')"
+            )
+            result = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True, text=True, cwd=os.getcwd(),
+            )
+            self.assertEqual(result.returncode, 0,
+                             f"subprocess failed: {result.stderr}")
+            self.assertIn("CMCLIENT_NOT_LOADED", result.stdout)
+
+
+class TestCacheFallbackEnd2End(unittest.TestCase):
+    """Phase 11 D-A3 end-to-end: live failure → cache fallback → cm_data_stale_since stamp."""
+
+    def _setup(self, d: Path):
+        config = d / "config"
+        config.mkdir()
+        (d / "triage").mkdir()
+        (d / "tasks").mkdir()
+        (d / "invoices").mkdir()
+        (d / "todos").mkdir()
+        (config / "clients.jsonl").write_text(
+            '{"domain":"ex.com","name":"Ex","cm_client_id":42}\n',
+            encoding="utf-8",
+        )
+        (d / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+        (d / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+        return d, d / ".cm-cache.json"
+
+    def _cached_summary(self):
+        return {
+            "client": {"id": 42, "name": "Ex"},
+            "financial": {"totalMRR": 5000, "totalARR": 60000,
+                          "activeContracts": 1, "currency": "AUD"},
+            "contacts": [{"id": 1, "name": "Alice", "email": "a@ex.com"}],
+            "activeContracts": [{
+                "id": 7, "name": "AMS Core", "type": "MSA",
+                "startDate": "2026-01-01", "endDate": "2027-01-01",
+                "totalValue": 60000, "mrr": 5000,
+            }],
+            "recentInvoices": [], "openProposals": [],
+        }
+
+    def test_cache_fallback_stamps_stale_since_and_writes_warning(self):
+        import unittest.mock as mock
+        from scripts.lib.cm_client import CmTransportError
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root, cache_path = self._setup(Path(d))
+            stale_ts = "2026-04-01T10:00:00+10:30"
+            cache = {
+                "schema_version": 1,
+                "global": {},
+                "by_client": {
+                    "ex.com": {
+                        "client_summary": {"fetched_at": stale_ts,
+                                           "result": self._cached_summary()},
+                    }
+                },
+            }
+            cache_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+            feed_path = data_root / "feed.jsonl"
+            feed_path.touch()
+
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "k"}), \
+                 mock.patch("scripts.lib.cm_client._cm_post",
+                            side_effect=CmTransportError("down")), \
+                 mock.patch("scripts.lib.cm_client.time.sleep"):
+                from scripts.lib.vault_writer import run_backfill
+                stats = run_backfill(data_root, Path(build), feed_path=feed_path)
+            self.assertGreaterEqual(stats["clients_written"], 1)
+
+            ex_md = list((Path(build) / "Clients").glob("*.md"))
+            ex_text = next(p for p in ex_md
+                           if "_Unknown" not in p.name).read_text(encoding="utf-8")
+            self.assertIn("cm_data_stale_since", ex_text)
+            self.assertIn(stale_ts, ex_text)
+            # Cached frontmatter values surface (Alice → primary_contact, AMS Core → deployed_modules)
+            self.assertIn("Alice", ex_text)
+            self.assertIn("AMS Core", ex_text)
+            # Warning feed entry written
+            feed = feed_path.read_text(encoding="utf-8")
+            self.assertIn('"level": "warning"', feed)
+
+    def test_cache_clears_stale_since_when_cm_succeeds(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root, cache_path = self._setup(Path(d))
+            feed_path = data_root / "feed.jsonl"
+            feed_path.touch()
+            fresh_summary = self._cached_summary()
+            sla_response = {"asOfDate": "2026-05-02", "projects": []}
+
+            def _fake_post(method, params, key):
+                if method == "get_client_summary":
+                    return fresh_summary
+                if method == "list_contracts_expiring":
+                    return {"contracts": []}
+                if method == "list_overdue_invoices":
+                    return {"invoices": []}
+                if method == "get_sla_status":
+                    return sla_response
+                return {}
+
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "k"}), \
+                 mock.patch("scripts.lib.cm_client._cm_post", side_effect=_fake_post):
+                from scripts.lib.vault_writer import run_backfill
+                run_backfill(data_root, Path(build), feed_path=feed_path)
+
+            ex_md = list((Path(build) / "Clients").glob("*.md"))
+            ex_text = next(p for p in ex_md
+                           if "_Unknown" not in p.name).read_text(encoding="utf-8")
+            self.assertNotIn("cm_data_stale_since", ex_text)
+
+
+class TestBackfillIdempotentPhase11(unittest.TestCase):
+    """D-14/D-16 idempotency under Phase 11 — two runs same CM responses → byte-identical
+    managed sections.
+
+    Strips both `last_synced:` and `cm_data_stale_since:` from the snapshot before
+    comparison.
+    """
+
+    def test_two_runs_byte_identical_managed(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root = Path(d)
+            (data_root / "config").mkdir()
+            (data_root / "triage").mkdir()
+            (data_root / "tasks").mkdir()
+            (data_root / "invoices").mkdir()
+            (data_root / "todos").mkdir()
+            (data_root / "config" / "clients.jsonl").write_text(
+                '{"domain":"ex.com","name":"Ex","cm_client_id":42}\n',
+                encoding="utf-8",
+            )
+            (data_root / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+            (data_root / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+            feed = data_root / "feed.jsonl"
+            feed.touch()
+
+            fresh = {
+                "client": {"id": 42, "name": "Ex"},
+                "financial": {"totalMRR": 0, "totalARR": 0,
+                              "activeContracts": 0, "currency": "AUD"},
+                "contacts": [], "activeContracts": [],
+                "recentInvoices": [], "openProposals": [],
+            }
+
+            def _fake_post(method, params, key):
+                if method == "get_client_summary":
+                    return fresh
+                if method == "list_contracts_expiring":
+                    return {"contracts": []}
+                if method == "list_overdue_invoices":
+                    return {"invoices": []}
+                if method == "get_sla_status":
+                    return {"projects": []}
+                return {}
+
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "k"}), \
+                 mock.patch("scripts.lib.cm_client._cm_post", side_effect=_fake_post):
+                from scripts.lib.vault_writer import run_backfill
+                run_backfill(data_root, Path(build), feed_path=feed)
+                snap1 = self._snapshot(Path(build))
+                run_backfill(data_root, Path(build), feed_path=feed)
+                snap2 = self._snapshot(Path(build))
+            self.assertEqual(snap1, snap2)
+
+    def _snapshot(self, build_root: Path) -> dict:
+        out = {}
+        for md in sorted((build_root / "Clients").glob("*.md")):
+            lines = md.read_text(encoding="utf-8").splitlines()
+            filtered = [ln for ln in lines
+                        if not ln.startswith("last_synced:")
+                        and not ln.startswith("cm_data_stale_since:")]
+            out[md.name] = "\n".join(filtered)
+        return out
+
+
+class TestJitMapping(unittest.TestCase):
+    """D-G1 JIT fallback inside _fetch_cm_data_for_run.
+
+    When clients.jsonl gains a new row without cm_client_id (e.g. Glen adds a
+    new client between Phase 11 ship and the next --mode map-cm-clients run),
+    the next sync issues ONE search_clients call for that domain. Three paths
+    must be tested: success (id found, persisted, feed.info), no-match (warn,
+    bucket empty, no mutation), and search failure (warn, bucket empty, no
+    mutation). All three preserve idempotency — clients.jsonl persists the JIT
+    result so the NEXT sync skips the JIT path entirely.
+
+    Test seam: mock `scripts.lib.cm_client._cm_post` (the single network seam
+    per RESEARCH §Test Scaffolding) so search_clients_for_domain is exercised
+    end-to-end without touching the network.
+    """
+
+    def _setup(self, d: Path, *, with_cm_id: bool = False) -> Path:
+        config = d / "config"
+        config.mkdir()
+        (d / "triage").mkdir()
+        (d / "tasks").mkdir()
+        (d / "invoices").mkdir()
+        (d / "todos").mkdir()
+        # Seed one mapped client (so has_mapped_clients gate trips and the
+        # CM fetch loop actually runs) and one unmapped target client.
+        line_mapped = '{"domain": "mapped.com", "name": "Mapped", "cm_client_id": 5}\n'
+        if with_cm_id:
+            line_target = '{"domain": "new.com", "name": "NewCo", "cm_client_id": 99}\n'
+        else:
+            line_target = '{"domain": "new.com", "name": "NewCo"}\n'
+        (config / "clients.jsonl").write_text(line_mapped + line_target, encoding="utf-8")
+        (d / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+        (d / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+        return d
+
+    def _fake_post_factory(self, *, search_returns=None, search_raises=None,
+                            summary_for_5=None, summary_for_jit=None):
+        """Build a side_effect for cm_client._cm_post that handles every method
+        run_backfill issues, with configurable behaviour for `search_clients`.
+        """
+        def _post(method, params, key):
+            if method == "search_clients":
+                if search_raises is not None:
+                    raise search_raises
+                return search_returns or {"clients": []}
+            if method == "list_contracts_expiring":
+                return {"contracts": []}
+            if method == "list_overdue_invoices":
+                return {"invoices": []}
+            if method == "get_client_summary":
+                cid = params.get("clientId")
+                if cid == 5:
+                    return summary_for_5 or {"client": {"id": 5, "name": "Mapped"},
+                                              "financial": {}, "contacts": [],
+                                              "activeContracts": [],
+                                              "recentInvoices": [], "openProposals": []}
+                return summary_for_jit or {"client": {"id": cid, "name": "NewCo"},
+                                            "financial": {}, "contacts": [],
+                                            "activeContracts": [],
+                                            "recentInvoices": [], "openProposals": []}
+            if method == "get_sla_status":
+                return {"projects": []}
+            return {}
+        return _post
+
+    def test_jit_maps_new_domain(self):
+        """search_clients returns a website-substring match → cm_client_id is
+        persisted to clients.jsonl, the info-level feed entry is written, and
+        get_client_summary is called with the freshly-mapped id."""
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root = Path(self._setup(Path(d)))
+            feed = data_root / "feed.jsonl"
+            feed.touch()
+            search_payload = {"clients": [
+                {"id": 77, "name": "NewCo Pty", "website": "https://new.com",
+                 "email": None, "phone": None, "activeContracts": 1, "contactCount": 1},
+            ]}
+            calls: list = []
+            def _trace_post(method, params, key):
+                calls.append((method, params))
+                fp = self._fake_post_factory(search_returns=search_payload)
+                return fp(method, params, key)
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "k"}), \
+                 mock.patch("scripts.lib.cm_client._cm_post", side_effect=_trace_post), \
+                 mock.patch("scripts.lib.cm_client.time.sleep"):
+                from scripts.lib.vault_writer import run_backfill
+                run_backfill(data_root, Path(build), feed_path=feed)
+            # 1. clients.jsonl now has the new id
+            updated = (data_root / "config" / "clients.jsonl").read_text(encoding="utf-8")
+            self.assertIn('"cm_client_id": 77', updated)
+            self.assertIn('"domain": "new.com"', updated)
+            # 2. feed has the info entry
+            feed_text = feed.read_text(encoding="utf-8")
+            self.assertIn('"level": "info"', feed_text)
+            self.assertIn("JIT-mapped new.com", feed_text)
+            self.assertIn("cm_client_id=77", feed_text)
+            # 3. get_client_summary was called with id 77 (the JIT result)
+            summary_calls = [(m, p) for (m, p) in calls if m == "get_client_summary"]
+            self.assertTrue(any(p.get("clientId") == 77 for (_m, p) in summary_calls),
+                            f"expected get_client_summary(clientId=77); calls: {summary_calls}")
+
+    def test_jit_no_match_warns(self):
+        """search_clients returns empty → warning feed entry, empty bucket, NO
+        mutation of clients.jsonl. The unmapped record stays unmapped so the
+        next sync re-attempts JIT (idempotent — eventually consistent)."""
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root = Path(self._setup(Path(d)))
+            feed = data_root / "feed.jsonl"
+            feed.touch()
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "k"}), \
+                 mock.patch("scripts.lib.cm_client._cm_post",
+                            side_effect=self._fake_post_factory(search_returns={"clients": []})), \
+                 mock.patch("scripts.lib.cm_client.time.sleep"):
+                from scripts.lib.vault_writer import run_backfill
+                run_backfill(data_root, Path(build), feed_path=feed)
+            # clients.jsonl unchanged for new.com (still no cm_client_id)
+            after = (data_root / "config" / "clients.jsonl").read_text(encoding="utf-8")
+            self.assertNotIn('"cm_client_id": 77', after)
+            new_lines = [ln for ln in after.splitlines() if '"domain": "new.com"' in ln]
+            self.assertTrue(new_lines, "new.com record disappeared from clients.jsonl")
+            self.assertNotIn("cm_client_id", new_lines[0])
+            # Warning feed entry written
+            feed_text = feed.read_text(encoding="utf-8")
+            self.assertIn('"level": "warning"', feed_text)
+            self.assertIn("JIT mapping failed for new.com", feed_text)
+
+    def test_jit_search_fails_warns(self):
+        """search_clients raises CmTransportError → warning feed entry, empty
+        bucket, NO mutation of clients.jsonl. CM downtime degrades gracefully."""
+        import unittest.mock as mock
+        from scripts.lib.cm_client import CmTransportError
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root = Path(self._setup(Path(d)))
+            feed = data_root / "feed.jsonl"
+            feed.touch()
+            def _post(method, params, key):
+                if method == "search_clients":
+                    raise CmTransportError("network down")
+                return self._fake_post_factory()(method, params, key)
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "k"}), \
+                 mock.patch("scripts.lib.cm_client._cm_post", side_effect=_post), \
+                 mock.patch("scripts.lib.cm_client.time.sleep"):
+                from scripts.lib.vault_writer import run_backfill
+                run_backfill(data_root, Path(build), feed_path=feed)
+            after = (data_root / "config" / "clients.jsonl").read_text(encoding="utf-8")
+            new_lines = [ln for ln in after.splitlines() if '"domain": "new.com"' in ln]
+            self.assertTrue(new_lines)
+            self.assertNotIn("cm_client_id", new_lines[0])
+            feed_text = feed.read_text(encoding="utf-8")
+            self.assertIn('"level": "warning"', feed_text)
+            self.assertIn("JIT mapping failed for new.com", feed_text)
+            self.assertIn("CmTransportError", feed_text)
 
 
 if __name__ == "__main__":
