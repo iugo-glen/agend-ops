@@ -23,7 +23,7 @@
     },
     "level": {
       "type": "string",
-      "enum": ["critical", "info", "debug"],
+      "enum": ["critical", "warning", "info", "debug"],
       "description": "Severity level for filtering"
     },
     "trigger": {
