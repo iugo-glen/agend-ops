@@ -579,5 +579,97 @@ class TestRenderFrontmatterPhase11(unittest.TestCase):
         self.assertNotIn("cm_data_stale_since", out)
 
 
+class TestRunMapCmClients(unittest.TestCase):
+    """Phase 11 D-G1: idempotent mapping pass populates cm_client_id."""
+
+    def _setup(self, d: Path) -> Path:
+        config = d / "config"
+        config.mkdir()
+        (d / "feed.jsonl").touch()
+        return config / "clients.jsonl"
+
+    def test_map_cm_clients_writes_id_for_unmapped_domain(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(d)
+            clients = self._setup(data_root)
+            clients.write_text(
+                '{"domain": "example.com", "name": "Ex"}\n',
+                encoding="utf-8",
+            )
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "test"}), \
+                 mock.patch("scripts.lib.cm_client.search_clients_for_domain",
+                            return_value=42):
+                from scripts.lib.vault_writer import run_map_cm_clients
+                stats = run_map_cm_clients(data_root, feed_path=data_root / "feed.jsonl")
+            self.assertEqual(stats["mapped"], 1)
+            written = clients.read_text(encoding="utf-8")
+            self.assertIn('"cm_client_id": 42', written)
+            self.assertIn('"domain": "example.com"', written)
+
+    def test_map_cm_clients_idempotent_when_all_ids_present(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(d)
+            clients = self._setup(data_root)
+            clients.write_text(
+                '{"domain": "ex.com", "name": "Ex", "cm_client_id": 5}\n',
+                encoding="utf-8",
+            )
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "test"}), \
+                 mock.patch("scripts.lib.cm_client.search_clients_for_domain") as m_search:
+                from scripts.lib.vault_writer import run_map_cm_clients
+                stats = run_map_cm_clients(data_root, feed_path=data_root / "feed.jsonl")
+            m_search.assert_not_called()
+            self.assertEqual(stats["unchanged"], 1)
+            self.assertEqual(stats["mapped"], 0)
+
+    def test_map_cm_clients_continues_on_per_client_failure(self):
+        import unittest.mock as mock
+        from scripts.lib.cm_client import CmTransportError
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(d)
+            clients = self._setup(data_root)
+            clients.write_text(
+                '{"domain": "fail.com", "name": "F"}\n'
+                '{"domain": "ok.com", "name": "O"}\n',
+                encoding="utf-8",
+            )
+            def side(domain, _key):
+                if domain == "fail.com":
+                    raise CmTransportError("network down")
+                return 7
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "test"}), \
+                 mock.patch("scripts.lib.cm_client.search_clients_for_domain",
+                            side_effect=side):
+                from scripts.lib.vault_writer import run_map_cm_clients
+                stats = run_map_cm_clients(data_root, feed_path=data_root / "feed.jsonl")
+            self.assertEqual(stats["mapped"], 1)
+            self.assertEqual(stats["failed"], 1)
+            written = clients.read_text(encoding="utf-8")
+            self.assertIn('"cm_client_id": 7', written)
+            # The failed record stays without cm_client_id
+            self.assertIn('"domain": "fail.com"', written)
+            # Feed warning was emitted
+            feed = (data_root / "feed.jsonl").read_text(encoding="utf-8")
+            self.assertIn("map-cm-clients: failed for fail.com", feed)
+            self.assertIn('"level": "warning"', feed)
+
+    def test_map_cm_clients_dry_run_does_not_write(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(d)
+            clients = self._setup(data_root)
+            original = '{"domain": "example.com", "name": "Ex"}\n'
+            clients.write_text(original, encoding="utf-8")
+            with mock.patch.dict(os.environ, {"CONTRACT_MANAGER_API_KEY": "test"}), \
+                 mock.patch("scripts.lib.cm_client.search_clients_for_domain"):
+                from scripts.lib.vault_writer import run_map_cm_clients
+                stats = run_map_cm_clients(data_root, dry_run=True,
+                                           feed_path=data_root / "feed.jsonl")
+            self.assertEqual(clients.read_text(encoding="utf-8"), original)
+            self.assertEqual(stats["queried"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
