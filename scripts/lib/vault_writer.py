@@ -376,7 +376,12 @@ def load_clients(data_root: Path) -> dict[str, dict]:
         if not domain:
             print(f"[load_clients] WARN: skipping entry without domain: {rec!r}", file=sys.stderr)
             continue
-        raw_entries.append({"name": name, "domain": domain, "status": rec.get("status", "active")})
+        raw_entries.append({
+            "name": name,
+            "domain": domain,
+            "status": rec.get("status", "active"),
+            "cm_client_id": rec.get("cm_client_id"),
+        })
 
     # First pass: assign safe slug per client.
     for r in raw_entries:
@@ -385,6 +390,7 @@ def load_clients(data_root: Path) -> dict[str, dict]:
             "client_name": r["name"],
             "domain": r["domain"],
             "status": r["status"],
+            "cm_client_id": r.get("cm_client_id"),
         }
 
     # Collision detection: any slug owned by ≥2 domains is rewritten to slug_with_domain
@@ -513,6 +519,74 @@ def _event_tuple(rec: dict, kind: str) -> tuple:
     # Unknown kind — render as best we can.
     summary = str(rec.get("id") or rec.get("summary") or rec)[:80]
     return (ts, kind, summary, None, None)
+
+
+# Phase 11 helpers: CM contract events + CM-tracked invoices ---------------
+
+def _normalize_invoice_number(s: str | None) -> str:
+    """Pitfall 4: case-fold + trim only. NO prefix/separator stripping.
+
+    INV-0042 vs inv-0042 → same. INV-0042 vs 0042 → DIFFERENT.
+    Single source of truth for the D-D2 invoice dedup rule used by
+    _gather_events when merging local invoices with CM list_overdue_invoices.
+    """
+    return (s or "").strip().lower()
+
+
+def _clientid_to_slug(cm_client_id, clients: dict) -> str:
+    """Reverse-map a CM clientId to a vault slug via clients.jsonl `cm_client_id`.
+
+    Returns the slug if found, "_Unknown" otherwise (D-04 routing rule preserved).
+    """
+    if cm_client_id is None:
+        return "_Unknown"
+    for info in clients.values():
+        if info.get("cm_client_id") == cm_client_id:
+            return info["slug"]
+    return "_Unknown"
+
+
+def _cm_contract_event_tuple(contract: dict, local_tz_offset: str = "+10:30") -> tuple:
+    """Build a D-E1 contract event tuple. kind="contract" → 📄 emoji via EMOJI_BY_KIND.
+
+    Source: list_contracts_expiring result (RESEARCH lines 528-546).
+    Returns: (ts_iso, "contract", summary, detail, gmail_thread_id_or_none).
+    """
+    ts = f"{contract.get('endDate', '1970-01-01')}T00:00:00{local_tz_offset}"
+    name = contract.get("name") or "(unnamed contract)"
+    client_display = contract.get("client") or "(unknown client)"
+    days = contract.get("daysUntilExpiry")
+    if days is not None:
+        summary = f"Contract renewal due — {client_display} ({name}, {days}d to expiry)"
+    else:
+        summary = f"Contract renewal due — {client_display} ({name})"
+    cm_id = contract.get("id")
+    if cm_id is not None:
+        detail = (
+            f"source: contract-manager · "
+            f"[Open in CM](https://contracts.agend.info/contracts/{cm_id})"
+        )
+    else:
+        detail = "source: contract-manager"
+    return (ts, "contract", summary, detail, None)
+
+
+def _cm_invoice_event_tuple(inv: dict, local_tz_offset: str = "+10:30") -> tuple:
+    """Build a D-D2 CM-tracked invoice event tuple (uses 💰 emoji; source-tagged in detail).
+
+    Source: list_overdue_invoices result (RESEARCH lines 564-581).
+    """
+    ts = f"{inv.get('issueDate', '1970-01-01')}T00:00:00{local_tz_offset}"
+    inv_num = inv.get("invoiceNumber") or "(no number)"
+    days = inv.get("daysPastDue")
+    amount = inv.get("amount")
+    if amount is not None and days is not None:
+        summary = f"{inv_num} overdue ({days}d) — ${amount}"
+    else:
+        summary = f"{inv_num} overdue"
+    severity = inv.get("severity") or "info"
+    detail = f"source: contract-manager · severity: {severity}"
+    return (ts, "invoice", summary, detail, None)
 
 
 # Section renderers -------------------------------------------------------
@@ -787,8 +861,20 @@ def render_unknown_note(unmatched_events: list, last_synced_iso: str) -> str:
 
 # Backfill / incremental orchestrators (D-13, D-14, D-15, D-15a, D-16) ----
 
-def _gather_events(data_root: Path, clients: dict[str, dict]) -> tuple[dict, list]:
+def _gather_events(data_root: Path, clients: dict[str, dict],
+                   cm_expiring: dict | None = None,
+                   cm_invoices: dict | None = None) -> tuple[dict, list]:
     """Stream all data sources → bucket events by client slug.
+
+    Phase 10 sources (unchanged): triage (D-10 filter), tasks, invoices (D-11
+    unconditional).
+
+    Phase 11 additions:
+      - cm_expiring: structuredContent of list_contracts_expiring → contract
+        events routed via clientId → cm_client_id → slug.
+      - cm_invoices: structuredContent of list_overdue_invoices → CM invoice
+        events, deduped against local data/invoices/active.jsonl by
+        invoice_number (case-fold + trim only — see Pitfall 4).
 
     Returns `(events_by_slug, unknown_pairs)` where `unknown_pairs` is a list of
     `(event_tuple, source_record)` for the _Unknown.md grouping pass.
@@ -818,6 +904,46 @@ def _gather_events(data_root: Path, clients: dict[str, dict]) -> tuple[dict, lis
             evt = _event_tuple(rec, kind)
             if slug == "_Unknown":
                 unknown_pairs.append((evt, rec))
+            else:
+                events_by_slug[slug].append(evt)
+
+    # --- Phase 11: contract events (D-E1) ---
+    if cm_expiring is not None:
+        for contract in cm_expiring.get("contracts", []) or []:
+            cm_client_id = contract.get("clientId")
+            slug = _clientid_to_slug(cm_client_id, clients)
+            evt = _cm_contract_event_tuple(contract)
+            if slug == "_Unknown":
+                # Synthetic source record for _Unknown.md grouping
+                unknown_pairs.append((evt, {
+                    "client_name": contract.get("client", ""),
+                    "client_domain": "",
+                }))
+            else:
+                events_by_slug[slug].append(evt)
+
+    # --- Phase 11: CM-tracked invoices (D-D2 + Pitfall 4) ---
+    # Build local invoice-number set (normalised) for dedup.
+    local_invoice_numbers: set[str] = set()
+    for rec in stream_ndjson(data_root / "invoices" / "active.jsonl"):
+        n = _normalize_invoice_number(rec.get("invoice_number"))
+        if n:
+            local_invoice_numbers.add(n)
+
+    if cm_invoices is not None:
+        for inv in cm_invoices.get("invoices", []) or []:
+            cm_num = _normalize_invoice_number(inv.get("invoiceNumber"))
+            if cm_num and cm_num in local_invoice_numbers:
+                # Duplicate — local wins per D-D2; skip the CM copy.
+                continue
+            cm_client_id = inv.get("clientId")
+            slug = _clientid_to_slug(cm_client_id, clients)
+            evt = _cm_invoice_event_tuple(inv)
+            if slug == "_Unknown":
+                unknown_pairs.append((evt, {
+                    "client_name": inv.get("client", ""),
+                    "client_domain": "",
+                }))
             else:
                 events_by_slug[slug].append(evt)
 
@@ -1440,6 +1566,11 @@ __all__ = [
     "render_unknown_note", "build_note_initial_markdown",
     "run_backfill", "run_incremental", "run_projection",
     "run_map_cm_clients",
+    # Phase 11 helpers (intentionally exported for testability per existing
+    # MarkerError pattern — leading underscore signals "internal API but
+    # importable for tests").
+    "_normalize_invoice_number", "_clientid_to_slug",
+    "_cm_contract_event_tuple", "_cm_invoice_event_tuple",
     "main",
 ]
 
