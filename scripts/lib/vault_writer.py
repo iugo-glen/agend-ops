@@ -952,7 +952,7 @@ def _gather_events(data_root: Path, clients: dict[str, dict],
 
 def run_backfill(data_root: Path, build_root: Path, dry_run: bool = False,
                  feed_path: Path | None = None) -> dict:
-    """Regenerate every client note from full `data/` history (D-15, D-16).
+    """Regenerate every client note from full `data/` history (D-15, D-16) + Phase 11 CM data.
 
     Args:
         data_root: directory containing `config/clients.jsonl`, `triage/`, `tasks/`, etc.
@@ -961,10 +961,20 @@ def run_backfill(data_root: Path, build_root: Path, dry_run: bool = False,
         feed_path: where critical feed entries land on failure. Default: `<data_root>/feed.jsonl`.
             Tests override to a temp path so production audit trail is never polluted (Issue 1).
 
+    Phase 11 additions (additive — falls back gracefully when CONTRACT_MANAGER_API_KEY
+    is unset or no client has cm_client_id):
+        - CM frontmatter extras (5 keys per D-09 extension)
+        - CM-TODOS managed section (D-B3)
+        - Usage managed section sourced from get_sla_status (D-C3-REVISED)
+        - Contract events in Activity Log (D-E1)
+        - CM-tracked invoices merged with local active.jsonl invoices, deduped by
+          invoice_number (D-D2 + Pitfall 4)
+        - data/.cm-cache.json fallback on CM unreachability (D-A3)
+
     Returns: `{"clients_written": int, "events_routed": int}`.
 
     Idempotent (D-14, D-16): two consecutive runs produce byte-identical managed sections
-    excluding the `last_synced` frontmatter line.
+    excluding the `last_synced` AND `cm_data_stale_since` frontmatter lines.
     """
     last_synced = now_iso_with_offset()
     if feed_path is None:
@@ -982,7 +992,15 @@ def run_backfill(data_root: Path, build_root: Path, dry_run: bool = False,
     clients = load_clients(data_root)
     todos = list(stream_ndjson(data_root / "todos" / "active.jsonl"))
     tasks = list(stream_ndjson(data_root / "tasks" / "active.jsonl"))
-    events_by_slug, unknown_pairs = _gather_events(data_root, clients)
+
+    # Phase 11: fetch CM data once per run (with cache fallback per D-A3)
+    cm_data = _fetch_cm_data_for_run(data_root, clients, feed_path)
+
+    events_by_slug, unknown_pairs = _gather_events(
+        data_root, clients,
+        cm_expiring=cm_data["global_expiring"],
+        cm_invoices=cm_data["global_invoices"],
+    )
 
     output_dir = build_root / "Clients"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -993,14 +1011,27 @@ def run_backfill(data_root: Path, build_root: Path, dry_run: bool = False,
     for domain, client in clients.items():
         slug = client["slug"]
         events = events_by_slug.get(slug, [])
-        fm = render_frontmatter(client, last_synced)
+
+        bucket = cm_data["by_domain"].get(domain, {})
+        cm_extra = bucket.get("frontmatter_extra")
+        sla_status = bucket.get("sla_status")
+        stale_since = bucket.get("stale_since")
+
+        fm = render_frontmatter(client, last_synced,
+                                cm_extra=cm_extra, cm_stale_since=stale_since)
+        cm_todos = render_cm_todos(cm_extra)
         oi = render_open_items(slug, todos, tasks, clients)
+        usage = render_usage(sla_status, client.get("client_name", ""))
         al = render_activity_log(events)
+
         path = output_dir / f"{slug}.md"
         if dry_run:
             print(f"[dry-run] would write {path}")
             continue
-        content = build_note_initial_markdown(client, fm, oi, al)
+        content = build_note_initial_markdown(
+            client, fm, oi, al,
+            cm_todos=cm_todos, usage=usage,
+        )
         _atomic_write(path, content)
         written.append(path)
 
@@ -1124,6 +1155,203 @@ def run_map_cm_clients(data_root: Path, dry_run: bool = False,
         _atomic_write(clients_path, body)
 
     return stats
+
+
+# =========================================================================
+# Phase 11: CM data fetch orchestration for run_backfill (D-A1 + D-A3)
+# =========================================================================
+
+
+def _fetch_cm_data_for_run(data_root: Path, clients: dict[str, dict],
+                           feed_path: Path) -> dict:
+    """Build the per-run CM data structure consumed by run_backfill.
+
+    Returns:
+        {
+            "global_expiring": dict | None,
+            "global_invoices": dict | None,
+            "by_domain": {
+                "<domain>": {
+                    "frontmatter_extra": dict | None,
+                    "sla_status": dict | None,
+                    "stale_since": str | None,
+                }
+            },
+        }
+
+    Failure mode per D-A3:
+        - Live call → on exhaustion, fall back to data/.cm-cache.json
+        - Cache hit → stamp stale_since with cache.fetched_at
+        - Cache miss → frontmatter_extra=None, sla_status=None
+          (CM-TODOS shows "unavailable")
+        - Either failure path → append system/warning to feed_path
+
+    Skips CM entirely when CONTRACT_MANAGER_API_KEY env is unset OR when no client
+    has cm_client_id (graceful degrade for fresh installs, dev environments, tests).
+
+    D-G1 JIT fallback: when a client lacks cm_client_id (Glen added a new row to
+    clients.jsonl after Phase 11 shipped), attempt one search_clients call for that
+    domain and atomic-rewrite clients.jsonl with the result. Mirrors run_map_cm_clients
+    (Plan 02) verbatim — same helper, same atomic write, same warning shape.
+    """
+    api_key = os.environ.get("CONTRACT_MANAGER_API_KEY", "")
+    has_mapped_clients = any(c.get("cm_client_id") is not None for c in clients.values())
+    if not api_key or not has_mapped_clients:
+        return {
+            "global_expiring": None,
+            "global_invoices": None,
+            "by_domain": {d: {"frontmatter_extra": None, "sla_status": None,
+                              "stale_since": None}
+                          for d in clients.keys()},
+        }
+
+    # Lazy import keeps Mac daemon's run_projection from pulling cm_client into
+    # sys.modules (Pitfall 1 / T-11-04-01). Tested by TestProjectionDoesNotImportCm.
+    from .cm_client import (
+        call_with_retry, load_cache, write_cache, gc_cache_orphans,
+        cm_summary_to_frontmatter_extra, search_clients_for_domain,
+        CmTransportError, CmRpcError,
+    )
+
+    cache_path = data_root / ".cm-cache.json"
+    cache = load_cache(cache_path)
+    cache = gc_cache_orphans(cache, set(clients.keys()))
+    cache.setdefault("global", {})
+    cache.setdefault("by_client", {})
+
+    out = {"global_expiring": None, "global_invoices": None, "by_domain": {}}
+    now_ts = now_iso_with_offset()
+
+    def _warn(summary: str, details: dict) -> None:
+        append_feed_entry(
+            {
+                "ts": now_iso_with_offset(),
+                "type": "system",
+                "summary": summary[:200],
+                "level": "warning",
+                "trigger": "hook",
+                "details": details,
+            },
+            feed_path=feed_path,
+        )
+
+    # --- Global: list_contracts_expiring ---
+    try:
+        exp_result = call_with_retry("list_contracts_expiring", {"days": 90}, api_key)
+        cache["global"]["expiring_contracts"] = {
+            "fetched_at": now_ts, "lookahead_days": 90, "result": exp_result,
+        }
+        out["global_expiring"] = exp_result
+    except (CmTransportError, CmRpcError) as e:
+        _warn(f"CM stale (list_contracts_expiring): {type(e).__name__}",
+              {"tool": "list_contracts_expiring", "error": str(e)})
+        cached = cache.get("global", {}).get("expiring_contracts", {}).get("result")
+        out["global_expiring"] = cached  # may be None if no cache
+
+    # --- Global: list_overdue_invoices ---
+    try:
+        inv_result = call_with_retry("list_overdue_invoices", {}, api_key)
+        cache["global"]["overdue_invoices"] = {"fetched_at": now_ts, "result": inv_result}
+        out["global_invoices"] = inv_result
+    except (CmTransportError, CmRpcError) as e:
+        _warn(f"CM stale (list_overdue_invoices): {type(e).__name__}",
+              {"tool": "list_overdue_invoices", "error": str(e)})
+        cached = cache.get("global", {}).get("overdue_invoices", {}).get("result")
+        out["global_invoices"] = cached
+
+    # --- Per-client: get_client_summary + get_sla_status ---
+    clients_path = data_root / "config" / "clients.jsonl"
+
+    for domain, info in clients.items():
+        cm_id = info.get("cm_client_id")
+        bucket = {"frontmatter_extra": None, "sla_status": None, "stale_since": None}
+        if cm_id is None:
+            # D-G1: just-in-time mapping for this one new domain.
+            try:
+                jit_id = search_clients_for_domain(domain, api_key)
+            except (CmTransportError, CmRpcError) as e:
+                _warn(
+                    f"JIT mapping failed for {domain} — set cm_client_id manually "
+                    f"or re-run --mode map-cm-clients ({type(e).__name__})",
+                    {"domain": domain, "phase": "jit-search", "error": str(e)},
+                )
+                out["by_domain"][domain] = bucket
+                continue
+            if jit_id is None:
+                _warn(
+                    f"JIT mapping failed for {domain} — set cm_client_id manually "
+                    f"or re-run --mode map-cm-clients (no CM match)",
+                    {"domain": domain, "phase": "jit-search", "error": "no-match"},
+                )
+                out["by_domain"][domain] = bucket
+                continue
+            # Persist the new id back to clients.jsonl (atomic, mirrors Plan 02 idiom).
+            jit_records: list[dict] = []
+            for rec in stream_ndjson(clients_path):
+                if rec.get("domain") == domain and rec.get("cm_client_id") is None:
+                    rec["cm_client_id"] = int(jit_id)
+                jit_records.append(rec)
+            jit_body = "\n".join(json.dumps(r, ensure_ascii=False) for r in jit_records) + "\n"
+            _atomic_write(clients_path, jit_body)
+            # Reflect the change in the in-memory `info` dict so downstream code sees it.
+            info["cm_client_id"] = int(jit_id)
+            cm_id = int(jit_id)
+            # Info-level feed entry: JIT-mapped {domain} → cm_client_id={N}
+            append_feed_entry(
+                {
+                    "ts": now_iso_with_offset(),
+                    "type": "system",
+                    "summary": f"JIT-mapped {domain} -> cm_client_id={cm_id}",
+                    "level": "info",
+                    "trigger": "hook",
+                    "details": {"domain": domain, "cm_client_id": cm_id, "phase": "jit-search"},
+                },
+                feed_path=feed_path,
+            )
+
+        # client_summary
+        try:
+            summary = call_with_retry("get_client_summary", {"clientId": int(cm_id)}, api_key)
+            cache["by_client"].setdefault(domain, {})["client_summary"] = {
+                "fetched_at": now_ts, "result": summary,
+            }
+            bucket["frontmatter_extra"] = cm_summary_to_frontmatter_extra(summary)
+        except (CmTransportError, CmRpcError) as e:
+            _warn(f"CM stale ({domain}, get_client_summary): {type(e).__name__}",
+                  {"tool": "get_client_summary", "domain": domain, "error": str(e)})
+            cached = cache.get("by_client", {}).get(domain, {}).get("client_summary", {})
+            if cached.get("result"):
+                bucket["frontmatter_extra"] = cm_summary_to_frontmatter_extra(cached["result"])
+                bucket["stale_since"] = cached.get("fetched_at")
+            # else: frontmatter_extra stays None — render_cm_todos shows "unavailable"
+
+        # sla_status (per-client filter applied in render_usage)
+        try:
+            sla = call_with_retry("get_sla_status", {"clientId": int(cm_id)}, api_key)
+            cache["by_client"].setdefault(domain, {})["sla_status"] = {
+                "fetched_at": now_ts, "result": sla,
+            }
+            bucket["sla_status"] = sla
+        except (CmTransportError, CmRpcError) as e:
+            _warn(f"CM stale ({domain}, get_sla_status): {type(e).__name__}",
+                  {"tool": "get_sla_status", "domain": domain, "error": str(e)})
+            cached = cache.get("by_client", {}).get(domain, {}).get("sla_status", {})
+            if cached.get("result"):
+                bucket["sla_status"] = cached["result"]
+                # stale_since stamped from whichever fallback fired first
+                if bucket["stale_since"] is None:
+                    bucket["stale_since"] = cached.get("fetched_at")
+
+        out["by_domain"][domain] = bucket
+
+    # Persist cache (best-effort; failure here doesn't fail the sync)
+    try:
+        write_cache(cache_path, cache)
+    except Exception as e:
+        _warn(f"CM cache write failed: {type(e).__name__}",
+              {"path": str(cache_path), "error": str(e)})
+
+    return out
 
 
 # =========================================================================
@@ -1319,6 +1547,13 @@ def run_projection(build_root: Path, icloud_root: Path, dry_run: bool = False,
 
     Returns: `{"projected": int, "skipped_marker_error": int,
                "skipped_icloud_placeholder": int, "created_new": int}`.
+
+    INVARIANT (Phase 11 Pitfall 1 — T-11-04-01): This function MUST NOT import or
+    call cm_client. The Mac daemon runs `--mode project-to-icloud` and has no CM
+    API key. Any future contributor adding a CM call here breaks the design and
+    produces URLError noise on Mac sync logs. Negative test:
+    TestProjectionDoesNotImportCm spawns a fresh Python subprocess and asserts
+    `scripts.lib.cm_client` is NOT in `sys.modules` after run_projection returns.
     """
     # Issue 8: serialize concurrent projections (fswatch+xargs may spawn N
     # parallel Pythons; we want sequential — each waiter reads disk at acquire
@@ -1571,6 +1806,7 @@ __all__ = [
     # importable for tests").
     "_normalize_invoice_number", "_clientid_to_slug",
     "_cm_contract_event_tuple", "_cm_invoice_event_tuple",
+    "_fetch_cm_data_for_run",
     "main",
 ]
 
