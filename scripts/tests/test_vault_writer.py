@@ -679,5 +679,113 @@ class TestRunMapCmClients(unittest.TestCase):
             self.assertEqual(stats["queried"], 1)
 
 
+class TestCmTodosSection(unittest.TestCase):
+    """Phase 11 D-B3: CM-TODOS managed section. Marker discipline inherits D-08a."""
+
+    def test_renders_no_missing_placeholder_when_all_populated(self):
+        from scripts.lib.vault_writer import render_cm_todos
+        out = render_cm_todos({
+            "deployed_modules": ["AMS Core"],
+            "contract_start": "2026-01-01",
+            "contract_end": "2027-01-01",
+            "primary_contact": "Alice",
+            "sites": [],
+        })
+        self.assertEqual(out, "_(no missing CM data)_")
+
+    def test_renders_bullets_for_missing_scalars(self):
+        from scripts.lib.vault_writer import render_cm_todos
+        out = render_cm_todos({
+            "deployed_modules": ["X"],
+            "contract_start": "",
+            "contract_end": "2027-01-01",
+            "primary_contact": "",
+            "sites": [],
+        })
+        self.assertIn("contract_start", out)
+        self.assertIn("primary_contact", out)
+        self.assertNotIn("contract_end", out)  # populated, should NOT appear
+        self.assertNotIn("deployed_modules", out)  # populated, should NOT appear
+
+    def test_renders_bullet_for_empty_deployed_modules(self):
+        from scripts.lib.vault_writer import render_cm_todos
+        out = render_cm_todos({
+            "deployed_modules": [],
+            "contract_start": "2026-01-01",
+            "contract_end": "2027-01-01",
+            "primary_contact": "Alice",
+            "sites": [],
+        })
+        self.assertIn("deployed_modules", out)
+
+    def test_renders_unavailable_placeholder_when_cm_extra_is_none(self):
+        from scripts.lib.vault_writer import render_cm_todos
+        out = render_cm_todos(None)
+        self.assertEqual(out, "_(CM data unavailable; will refresh next sync)_")
+
+    def test_sites_is_not_a_missing_condition(self):
+        from scripts.lib.vault_writer import render_cm_todos
+        # Sites is permanently [] per D-C2-REVISED — it should NEVER appear as a TODO bullet
+        out = render_cm_todos({
+            "deployed_modules": ["X"],
+            "contract_start": "2026-01-01",
+            "contract_end": "2027-01-01",
+            "primary_contact": "Alice",
+            "sites": [],
+        })
+        self.assertNotIn("sites", out.lower())
+        self.assertEqual(out, "_(no missing CM data)_")
+
+
+class TestUsageSection(unittest.TestCase):
+    """Phase 11 D-C3-REVISED: Usage section sourced from get_sla_status."""
+
+    def _sla(self, projects: list) -> dict:
+        return {"asOfDate": "2026-05-02", "projects": projects}
+
+    def test_no_usage_data_when_sla_none(self):
+        from scripts.lib.vault_writer import render_usage
+        self.assertEqual(render_usage(None, "Anyone"), "_(no usage data)_")
+
+    def test_no_projects_returns_placeholder(self):
+        from scripts.lib.vault_writer import render_usage
+        self.assertEqual(render_usage(self._sla([]), "Anyone"), "_(no usage data)_")
+
+    def test_filters_by_client_name(self):
+        from scripts.lib.vault_writer import render_usage
+        sla = self._sla([
+            {"projectName": "Alpha", "clientName": "Other Client",
+             "hoursLogged": 5, "hoursBudgeted": 10, "percentConsumed": 50},
+            {"projectName": "Beta", "clientName": "Property Council",
+             "hoursLogged": 12.5, "hoursBudgeted": 20, "percentConsumed": 62},
+        ])
+        out = render_usage(sla, "Property Council")
+        self.assertIn("Beta", out)
+        self.assertNotIn("Alpha", out)
+        self.assertNotIn("Other Client", out)
+
+    def test_renders_hours_and_percent(self):
+        from scripts.lib.vault_writer import render_usage
+        sla = self._sla([
+            {"projectName": "Beta", "clientName": "Property Council",
+             "hoursLogged": 12.5, "hoursBudgeted": 20, "percentConsumed": 62,
+             "status": "on-track"},
+        ])
+        out = render_usage(sla, "Property Council")
+        self.assertIn("12.5", out)
+        self.assertIn("20", out)
+        self.assertIn("62", out)
+        self.assertIn("on-track", out)
+
+    def test_filter_is_case_insensitive_substring(self):
+        from scripts.lib.vault_writer import render_usage
+        sla = self._sla([
+            {"projectName": "PCA Project", "clientName": "property council australia",
+             "hoursLogged": 1, "hoursBudgeted": 2, "percentConsumed": 50},
+        ])
+        out = render_usage(sla, "Property Council")
+        self.assertIn("PCA Project", out)
+
+
 if __name__ == "__main__":
     unittest.main()
