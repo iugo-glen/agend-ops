@@ -8,17 +8,62 @@ updated: 2026-05-03T12:05:22+09:30
 
 ## Current Test
 
-[awaiting human testing — Phase 12 is code-and-tests complete; live Coolify smoke + iPhone visual check are the only remaining verifications]
+Glen pausing 2026-05-03 — return to item 1 (OAuth provisioning on Coolify) when ready. Item 1's architectural finding has been documented in revised step 1 below: the original "scp credentials from Mac" plan does NOT work because Mac uses Keychain. Coolify needs fresh OAuth minted there directly. ~30 min of work the next time Glen sits down with this. Phase 12 code is shipped and correct on master + Coolify HEAD.
 
 ## Tests
 
-### 1. Coolify backfill smoke test (sync runs end-to-end with workspace_client live)
+### 1. Provision OAuth on Coolify (one-time prerequisite — REVISED 2026-05-03)
+
+**IMPORTANT FINDING during attempted provisioning 2026-05-03:** The original plan to "scp `~/.google_workspace_mcp/credentials/` from Mac to Coolify" does NOT work. The hardened-workspace MCP on macOS stores credentials in **macOS Keychain**, not in JSON files (per `auth/credential_store.py` docstring). The directory exists but is empty by design. There's no file to copy.
+
+**Actual steps required:**
+
+```bash
+# 1. SSH to Coolify host
+ssh root@103.249.238.17
+
+# 2. Clone hardened-workspace-mcp on Coolify (mirrors Mac install)
+mkdir -p /opt && cd /opt
+git clone https://github.com/c0webster/hardened-google-workspace-mcp.git
+cd hardened-google-workspace-mcp
+uv sync   # uv is already installed on Coolify (we used it for graphify)
+
+# 3. Set the credentials dir BEFORE running OAuth — forces JSON-file storage
+#    instead of Linux SecretService (which workspace_client.py CAN'T read)
+export GOOGLE_MCP_CREDENTIALS_DIR=/root/.google_workspace_mcp/credentials
+mkdir -p "${GOOGLE_MCP_CREDENTIALS_DIR}"
+
+# 4. Set the OAuth client credentials (copy values from your Mac's
+#    ~/.claude.json hardened-workspace `env` block)
+export GOOGLE_OAUTH_CLIENT_ID=804182813448-j6sf95h1fc9s1lqtbh08a47s6dlvhg2r.apps.googleusercontent.com
+export GOOGLE_OAUTH_CLIENT_SECRET=<copy from ~/.claude.json on Mac — DO NOT paste here>
+
+# 5. Run the MCP OAuth flow — this opens a browser-based consent. Coolify is
+#    headless, so the MCP will print a URL you open IN YOUR BROWSER on Mac,
+#    you consent as glen@iugo.com.au, then paste the redirect URL back to the
+#    Coolify shell. Specific command depends on the MCP's auth helper —
+#    typical pattern:
+uv run python -m main --auth glen@iugo.com.au
+# or
+uv run python scripts/auth_helper.py glen@iugo.com.au
+# (check the repo's README on Coolify for the exact entry point)
+
+# 6. Verify JSON files now exist
+ls -la "${GOOGLE_MCP_CREDENTIALS_DIR}"
+# Expected: glen@iugo.com.au.json with refresh_token + access_token
+
+# 7. Persist the env var for future shell sessions on Coolify (so cron / manual
+#    runs both see it). Append to /etc/environment or root's .bashrc:
+echo 'GOOGLE_MCP_CREDENTIALS_DIR=/root/.google_workspace_mcp/credentials' >> /etc/environment
+# (also set CONTRACT_MANAGER_API_KEY here if not already — Phase 11 prereq)
+```
+
+result: [pending — start here]
+
+### 2. Coolify backfill smoke test (sync runs end-to-end with workspace_client live)
 
 expected:
-1. Ensure `GOOGLE_MCP_CREDENTIALS_DIR` env var is set on Coolify pointing to OAuth blob (mirror of Glen's Mac `~/.google_workspace_mcp/credentials/`). If Coolify doesn't have OAuth credentials yet:
-   - Option A (simplest): copy the OAuth dir from Mac to Coolify via scp
-   - Option B (cleanest): mint fresh OAuth on Coolify by running hardened-workspace MCP once locally on Coolify
-2. SSH to Coolify and run:
+After step 1 above is complete, in the same SSH session OR after `source /etc/environment`:
    ```bash
    ssh root@103.249.238.17
    cd /opt/agend-ops
@@ -111,4 +156,8 @@ blocked: 0
 
 (None at the code+test layer — verifier scored 23/23 must-haves verified. The 4 items above are LIVE infrastructure verifications that require Coolify execution with real OAuth credentials. Same deferred-verification pattern Phase 11 used for its Tasks 02-03 and 04-03.)
 
-**Coolify OAuth credentials availability** (research Q3 follow-up): Phase 12 unconditionally validates `GOOGLE_MCP_CREDENTIALS_DIR` on Coolify (per Plan 12-01). If the env var is unset OR the path doesn't exist, sync-obsidian.sh fails fast at line 42 (mirroring Phase 11's CM key validation at line 33). Glen needs to ensure either: (a) hardened-workspace MCP runs at least once on Coolify to mint fresh OAuth, OR (b) the OAuth blob from Mac is scp'd to Coolify. Until this is resolved, item 1 above will fail at the env validation step (which is correct, fail-loud behavior).
+**Coolify OAuth credentials availability** (research Q3 follow-up — REVISED 2026-05-03): Phase 12 unconditionally validates `GOOGLE_MCP_CREDENTIALS_DIR` on Coolify (per Plan 12-01). If the env var is unset OR the path doesn't exist, sync-obsidian.sh fails fast at line 42. The original plan to scp credentials from Mac is INVALID — Mac stores them in Keychain (no files), so Glen must mint fresh OAuth on Coolify directly. See revised step 1 above.
+
+**Phase 12.1 candidate (architectural follow-up):** The Phase 12 RESEARCH.md and CONTEXT.md (D-X1) assumed OAuth credentials would be portable JSON files. In reality, hardened-workspace-mcp uses platform-native credential stores by default (macOS Keychain on Mac, SecretService on Linux). For workspace_client.py to work on Coolify, `GOOGLE_MCP_CREDENTIALS_DIR` must be set BEFORE the OAuth flow so the MCP falls back to LocalDirectoryCredentialStore. Worth a follow-up phase that either:
+(a) makes workspace_client.py able to read directly from system Keychain/SecretService (not just JSON files), OR
+(b) bakes the "set GOOGLE_MCP_CREDENTIALS_DIR before auth" requirement into the install docs more prominently.
