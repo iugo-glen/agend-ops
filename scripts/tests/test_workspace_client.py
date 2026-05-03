@@ -214,5 +214,259 @@ class TestWorkspaceCallWithRetry(unittest.TestCase):
         self.assertEqual(mock_get.call_count, 1)
 
 
+class TestWorkspaceCache(unittest.TestCase):
+    """Phase 12: cache helpers — atomic write, corruption tolerance, GC."""
+
+    def test_load_cache_missing_returns_skeleton(self):
+        from scripts.lib.workspace_client import load_cache, CACHE_SCHEMA_VERSION
+        with mock.patch("pathlib.Path.exists", return_value=False):
+            cache = load_cache(Path("/nonexistent/cache.json"))
+        self.assertEqual(cache["schema_version"], CACHE_SCHEMA_VERSION)
+        self.assertEqual(cache["global"], {})
+        self.assertEqual(cache["by_client"], {})
+
+    def test_load_cache_corrupt_returns_skeleton(self):
+        from scripts.lib.workspace_client import load_cache
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write("{not valid json")
+            corrupt_path = Path(f.name)
+        try:
+            cache = load_cache(corrupt_path)
+            self.assertEqual(cache["global"], {})
+            self.assertEqual(cache["by_client"], {})
+        finally:
+            corrupt_path.unlink()
+
+    def test_load_cache_schema_mismatch_returns_skeleton(self):
+        from scripts.lib.workspace_client import load_cache
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"schema_version": 999, "global": {"k": "v"}}, f)
+            mismatch_path = Path(f.name)
+        try:
+            cache = load_cache(mismatch_path)
+            self.assertEqual(cache["global"], {})  # reset to skeleton
+        finally:
+            mismatch_path.unlink()
+
+    def test_write_cache_atomic_roundtrip(self):
+        from scripts.lib.workspace_client import (
+            write_cache, load_cache, CACHE_SCHEMA_VERSION,
+        )
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            cache_path = Path(d) / "cache.json"
+            cache = {
+                "schema_version": CACHE_SCHEMA_VERSION,
+                "global": {"calendar_events": {"fetched_at": "2026-05-02T10:00", "result": {"items": []}}},
+                "by_client": {},
+            }
+            write_cache(cache_path, cache)
+            self.assertTrue(cache_path.exists())
+            roundtrip = load_cache(cache_path)
+            self.assertEqual(roundtrip, cache)
+
+    def test_gc_cache_orphans_drops_unknown_domains(self):
+        from scripts.lib.workspace_client import gc_cache_orphans, CACHE_SCHEMA_VERSION
+        cache = {
+            "schema_version": CACHE_SCHEMA_VERSION,
+            "global": {},
+            "by_client": {
+                "current.com": {"x": 1},
+                "removed.com": {"x": 2},
+                "alsoremoved.com": {"x": 3},
+            },
+        }
+        result = gc_cache_orphans(cache, {"current.com"})
+        self.assertEqual(set(result["by_client"].keys()), {"current.com"})
+
+    def test_load_cache_defensive_setdefault_for_missing_subkeys(self):
+        """Cache file with schema_version=1 but missing 'global' or 'by_client' keys."""
+        from scripts.lib.workspace_client import load_cache, CACHE_SCHEMA_VERSION
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"schema_version": CACHE_SCHEMA_VERSION}, f)  # no sub-keys
+            partial_path = Path(f.name)
+        try:
+            cache = load_cache(partial_path)
+            self.assertEqual(cache["global"], {})
+            self.assertEqual(cache["by_client"], {})
+        finally:
+            partial_path.unlink()
+
+
+class TestIsInternalHelper(unittest.TestCase):
+    """D-D1 part 2 — _is_internal classification."""
+
+    def test_iugo_domain_is_internal(self):
+        from scripts.lib.workspace_client import _is_internal
+        self.assertTrue(_is_internal("anyone@iugo.com.au", "glen@iugo.com.au"))
+
+    def test_primary_email_is_internal_case_insensitive(self):
+        from scripts.lib.workspace_client import _is_internal
+        self.assertTrue(_is_internal("GLEN@iugo.com.au", "glen@iugo.com.au"))
+
+    def test_external_domain_is_external(self):
+        from scripts.lib.workspace_client import _is_internal
+        self.assertFalse(_is_internal("alex@otaus.com.au", "glen@iugo.com.au"))
+
+    def test_empty_email_treated_as_internal(self):
+        from scripts.lib.workspace_client import _is_internal
+        self.assertTrue(_is_internal("", "glen@iugo.com.au"))
+
+    def test_no_at_sign_treated_as_internal(self):
+        from scripts.lib.workspace_client import _is_internal
+        self.assertTrue(_is_internal("malformed_no_at_sign", "glen@iugo.com.au"))
+
+
+class TestCalendarEventAdapter(unittest.TestCase):
+    """Phase 12 D-D1 + D-D2 — format_calendar_event_for_log."""
+
+    def _event(self, **overrides) -> dict:
+        e = {
+            "id": "evt-001",
+            "summary": "Sync with PCA",
+            "start": {"dateTime": "2026-05-15T10:00:00+10:30"},
+            "end": {"dateTime": "2026-05-15T11:00:00+10:30"},
+            "attendees": [
+                {"email": "glen@iugo.com.au"},
+                {"email": "craig@propertycouncil.com.au"},
+            ],
+            "htmlLink": "https://calendar.google.com/event?eid=xyz",
+            "visibility": "default",
+        }
+        e.update(overrides)
+        return e
+
+    def test_passes_event_with_external_attendee(self):
+        from scripts.lib.workspace_client import format_calendar_event_for_log
+        result = format_calendar_event_for_log(self._event(), "glen@iugo.com.au")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["id"], "evt-001")
+        self.assertEqual(result["summary"], "Sync with PCA")
+        self.assertEqual(result["html_link"], "https://calendar.google.com/event?eid=xyz")
+
+    def test_filters_private_visibility(self):
+        from scripts.lib.workspace_client import format_calendar_event_for_log
+        result = format_calendar_event_for_log(
+            self._event(visibility="private"), "glen@iugo.com.au")
+        self.assertIsNone(result)
+
+    def test_filters_no_external_attendees(self):
+        from scripts.lib.workspace_client import format_calendar_event_for_log
+        all_internal = self._event(attendees=[
+            {"email": "glen@iugo.com.au"},
+            {"email": "anyone@iugo.com.au"},
+        ])
+        result = format_calendar_event_for_log(all_internal, "glen@iugo.com.au")
+        self.assertIsNone(result)
+
+    def test_filters_mass_attendees(self):
+        """D-D2: 26 attendees → filtered."""
+        from scripts.lib.workspace_client import format_calendar_event_for_log
+        many = self._event(attendees=[
+            {"email": f"u{i}@external.com"} for i in range(26)
+        ])
+        result = format_calendar_event_for_log(many, "glen@iugo.com.au")
+        self.assertIsNone(result)
+
+    def test_filters_25_attendees_passes(self):
+        """D-D2 boundary: exactly 25 → passes."""
+        from scripts.lib.workspace_client import format_calendar_event_for_log
+        exactly_25 = self._event(attendees=[
+            {"email": f"u{i}@external.com"} for i in range(25)
+        ])
+        result = format_calendar_event_for_log(exactly_25, "glen@iugo.com.au")
+        self.assertIsNotNone(result)
+
+    def test_passes_with_one_external(self):
+        """D-D1 boundary: 24 internal + 1 external → passes."""
+        from scripts.lib.workspace_client import format_calendar_event_for_log
+        mostly_internal = self._event(attendees=[
+            {"email": f"u{i}@iugo.com.au"} for i in range(24)
+        ] + [{"email": "external@otaus.com.au"}])
+        result = format_calendar_event_for_log(mostly_internal, "glen@iugo.com.au")
+        self.assertIsNotNone(result)
+
+    def test_handles_missing_summary(self):
+        from scripts.lib.workspace_client import format_calendar_event_for_log
+        no_title = self._event(summary=None)
+        result = format_calendar_event_for_log(no_title, "glen@iugo.com.au")
+        self.assertEqual(result["summary"], "(no title)")
+
+    def test_handles_date_only_start(self):
+        from scripts.lib.workspace_client import format_calendar_event_for_log
+        date_only = self._event(start={"date": "2026-05-15"})
+        result = format_calendar_event_for_log(date_only, "glen@iugo.com.au")
+        self.assertEqual(result["start_dt"], "2026-05-15")
+
+    def test_carries_id_for_dedup(self):
+        """Pitfall 4: event ID is the stable dedup key in _gather_events (Wave 2)."""
+        from scripts.lib.workspace_client import format_calendar_event_for_log
+        result = format_calendar_event_for_log(
+            self._event(id="stable-google-event-id-xyz"), "glen@iugo.com.au")
+        self.assertEqual(result["id"], "stable-google-event-id-xyz")
+
+
+class TestDriveFileAdapter(unittest.TestCase):
+    """Phase 12 D-D3 — format_drive_file_for_log."""
+
+    def _file(self, **overrides) -> dict:
+        f = {
+            "id": "file-001",
+            "name": "Proposal-PCA-v3.docx",
+            "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "modifiedTime": "2026-05-01T14:00:00Z",
+            "webViewLink": "https://docs.google.com/document/d/xyz/edit",
+            "lastModifyingUser": {"displayName": "Glen Rosie",
+                                  "emailAddress": "glen@iugo.com.au"},
+            "trashed": False,
+            "parents": ["root"],
+        }
+        f.update(overrides)
+        return f
+
+    def test_passes_normal_file(self):
+        from scripts.lib.workspace_client import format_drive_file_for_log
+        result = format_drive_file_for_log(self._file())
+        self.assertIsNotNone(result)
+        self.assertEqual(result["id"], "file-001")
+        self.assertEqual(result["name"], "Proposal-PCA-v3.docx")
+        self.assertEqual(result["last_modifying_user"]["displayName"], "Glen Rosie")
+
+    def test_filters_trashed(self):
+        from scripts.lib.workspace_client import format_drive_file_for_log
+        result = format_drive_file_for_log(self._file(trashed=True))
+        self.assertIsNone(result)
+
+    def test_filters_gdraft_extension(self):
+        from scripts.lib.workspace_client import format_drive_file_for_log
+        result = format_drive_file_for_log(self._file(name="Notes.gdraft"))
+        self.assertIsNone(result)
+
+    def test_filters_draft_token_in_name(self):
+        """D-D3 case-sensitive — exact match for `[DRAFT]` token."""
+        from scripts.lib.workspace_client import format_drive_file_for_log
+        result = format_drive_file_for_log(self._file(name="My [DRAFT] document.docx"))
+        self.assertIsNone(result)
+
+    def test_passes_lowercase_draft_in_name(self):
+        """D-D3 is case-sensitive: lowercase `[draft]` is NOT filtered."""
+        from scripts.lib.workspace_client import format_drive_file_for_log
+        result = format_drive_file_for_log(self._file(name="my [draft] doc.docx"))
+        self.assertIsNotNone(result)
+
+    def test_handles_missing_last_modifying_user(self):
+        from scripts.lib.workspace_client import format_drive_file_for_log
+        result = format_drive_file_for_log(self._file(lastModifyingUser=None))
+        self.assertEqual(result["last_modifying_user"], {})
+
+    def test_carries_id_for_dedup(self):
+        from scripts.lib.workspace_client import format_drive_file_for_log
+        result = format_drive_file_for_log(self._file(id="stable-drive-file-id-xyz"))
+        self.assertEqual(result["id"], "stable-drive-file-id-xyz")
+
+
 if __name__ == "__main__":
     unittest.main()
