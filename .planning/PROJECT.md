@@ -34,6 +34,7 @@ Offload cognitive load — Claude handles email triage and task execution so Gle
 - Mobile-first responsive dashboard (tabs on phone, Kanban on desktop) — Phase 4
 - Notion-style aesthetics with system auto dark/light mode — Phase 4
 - Contract Manager MCP integration: domain → cm_client_id mapping (D-G1 + JIT fallback), CM-aware run_backfill with cache fallback + cm_data_stale_since stamping, contract events 📄 in Activity Log, CM-tracked invoice merge (Pitfall 4 case-fold + trim dedup), CM-TODOS + USAGE managed sections, Pitfall 1 enforced (Mac never imports cm_client) — Phase 11 (live mapping pass + iPhone visual verification deferred per Glen 2026-05-02 override; tracked in 11-HUMAN-UAT.md)
+- Calendar + Drive activity enrichment: workspace_client.py uses Google Calendar v3 + Drive v3 REST APIs directly (urllib + OAuth blob from hardened-workspace credentials per D-X1, NOT MCP tool calls due to formatted-text response shape); 3-layer endpoint allowlist enforcement (constant + runtime gate + grep-lint test); strict-attendee-domain calendar matching (D-A2) + filename-substring Drive matching with stop-list/word-boundary/longest-alias precedence (D-A4-REVISED — Drive root is flat, no /Clients/ folder); 90d rolling calendar window + top-20-per-client Drive cap; D-D1/D-D2/D-D3 privacy filters; meeting (📅) + doc (📝) emoji extension (📄 stays contract-only); _fetch_external_data_for_run orchestrates CM+Cal+Drive with shared retry+cache+warning + per-tool try/except isolation; Pitfall 1 inheritance (Mac never imports workspace_client OR cm_client) — Phase 12 (Coolify OAuth credentials + iPhone visual verification deferred; tracked in 12-HUMAN-UAT.md)
 
 ### Active
 
@@ -108,4 +109,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-02 after Phase 11 (Contract Manager Integration) completed — INTL-01 (extended) now also satisfied at the contract data layer; cm_client.py JSON-RPC seam + run_backfill orchestration land production-ready code with 17 mocked-CM tests (74 total) on master. Live CM-key mint + iPhone Obsidian visual verification deferred to post-build per Glen 2026-05-02 "don't stop! I'll add keys later" override; tracked in 11-HUMAN-UAT.md.*
+*Last updated: 2026-05-03 after Phase 12 (Calendar + Drive Activity Enrichment) completed — INTL-01 (extended) now also satisfied at the workspace data layer; workspace_client.py + filename matcher + _fetch_external_data_for_run orchestration land production-ready code with 197 tests (up from 74 at start of Phase 11); 16 commits across 4 plans/4 waves. Coolify OAuth credentials provisioning + iPhone Obsidian visual verification deferred to post-build; tracked in 12-HUMAN-UAT.md.*
