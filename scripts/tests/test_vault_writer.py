@@ -1306,5 +1306,136 @@ class TestJitMapping(unittest.TestCase):
             self.assertIn("CmTransportError", feed_text)
 
 
+class TestEmojiByKindPhase12(unittest.TestCase):
+    """Phase 12 D-C3: EMOJI_BY_KIND extends with meeting→📅 and doc→📝.
+
+    Locked invariants:
+      - 📄 stays contract-only (D-C3; verification anchor 4)
+      - All Phase 10/11 kinds preserved (additive change)
+      - render_log_line accepts the new kinds without raising
+    """
+
+    def test_emoji_by_kind_includes_meeting_and_doc(self):
+        from scripts.lib.vault_writer import EMOJI_BY_KIND
+        self.assertEqual(EMOJI_BY_KIND.get("meeting"), "📅")
+        self.assertEqual(EMOJI_BY_KIND.get("doc"), "📝")
+
+    def test_emoji_by_kind_preserves_phase_10_11_kinds(self):
+        from scripts.lib.vault_writer import EMOJI_BY_KIND
+        self.assertEqual(EMOJI_BY_KIND.get("triage"), "📧")
+        self.assertEqual(EMOJI_BY_KIND.get("task"), "✅")
+        self.assertEqual(EMOJI_BY_KIND.get("invoice"), "💰")
+        self.assertEqual(EMOJI_BY_KIND.get("contract"), "📄")
+
+    def test_emoji_by_kind_contract_emoji_stays_contract_only(self):
+        """D-C3 invariant: 📄 maps to exactly one kind ('contract'). Drive docs use 📝."""
+        from scripts.lib.vault_writer import EMOJI_BY_KIND
+        kinds_with_book_emoji = [k for k, e in EMOJI_BY_KIND.items() if e == "📄"]
+        self.assertEqual(kinds_with_book_emoji, ["contract"],
+                         f"📄 must be contract-only; got {kinds_with_book_emoji}")
+
+    def test_render_log_line_accepts_meeting_kind(self):
+        from scripts.lib.vault_writer import render_log_line
+        out = render_log_line(rec_ts_iso="2026-05-01T10:30:00+10:30",
+                              kind="meeting", summary="Sync with PCA")
+        self.assertTrue(out.startswith("### [2026-05-01 10:30] 📅 Sync with PCA"),
+                        f"unexpected output: {out!r}")
+
+    def test_render_log_line_accepts_doc_kind(self):
+        from scripts.lib.vault_writer import render_log_line
+        out = render_log_line(rec_ts_iso="2026-05-01T10:30:00+10:30",
+                              kind="doc", summary="Proposal.docx")
+        self.assertTrue(out.startswith("### [2026-05-01 10:30] 📝 Proposal.docx"),
+                        f"unexpected output: {out!r}")
+
+    def test_render_log_line_rejects_unknown_kind(self):
+        """Sanity check: unknown kinds still raise (validation gate intact)."""
+        from scripts.lib.vault_writer import render_log_line
+        with self.assertRaises(ValueError):
+            render_log_line(rec_ts_iso="2026-05-01T10:30:00+10:30",
+                            kind="unknown_kind_phase_12", summary="x")
+
+
+class TestLoadClientsAliasesPhase12(unittest.TestCase):
+    """Phase 12 prereq for D-A4-REVISED filename matching: load_clients carries aliases[]."""
+
+    def _write_clients_jsonl(self, d: Path, records: list[dict]) -> Path:
+        config = d / "config"
+        config.mkdir(exist_ok=True)
+        path = config / "clients.jsonl"
+        path.write_text(
+            "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def test_load_clients_carries_aliases(self):
+        from scripts.lib.vault_writer import load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(d)
+            self._write_clients_jsonl(data_root, [
+                {"domain": "pca.com.au", "name": "Property Council Australia",
+                 "aliases": ["PCA", "pca"]},
+            ])
+            clients = load_clients(data_root)
+            self.assertIn("pca.com.au", clients)
+            self.assertEqual(clients["pca.com.au"]["aliases"], ["PCA", "pca"])
+
+    def test_load_clients_aliases_default_to_empty_list(self):
+        """Defensive default — Wave 2's matcher iterates this list; missing field → []."""
+        from scripts.lib.vault_writer import load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(d)
+            self._write_clients_jsonl(data_root, [
+                {"domain": "no-aliases.com", "name": "NoAliases"},
+            ])
+            clients = load_clients(data_root)
+            self.assertEqual(clients["no-aliases.com"]["aliases"], [])
+
+    def test_load_clients_aliases_null_normalized_to_empty_list(self):
+        """Defensive normalization: explicit null in JSON → []."""
+        from scripts.lib.vault_writer import load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(d)
+            self._write_clients_jsonl(data_root, [
+                {"domain": "nullaliases.com", "name": "NullAliases", "aliases": None},
+            ])
+            clients = load_clients(data_root)
+            self.assertEqual(clients["nullaliases.com"]["aliases"], [])
+
+    def test_load_clients_preserves_phase_10_11_keys(self):
+        """Additive change must not regress Phase 10 (slug/client_name/domain/status)
+        or Phase 11 (cm_client_id) keys."""
+        from scripts.lib.vault_writer import load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(d)
+            self._write_clients_jsonl(data_root, [
+                {"domain": "ex.com", "name": "Ex", "aliases": ["X"],
+                 "cm_client_id": 42},
+            ])
+            clients = load_clients(data_root)
+            info = clients["ex.com"]
+            for key in ("slug", "client_name", "domain", "status", "cm_client_id", "aliases"):
+                self.assertIn(key, info, f"missing key: {key}")
+            self.assertEqual(info["client_name"], "Ex")
+            self.assertEqual(info["domain"], "ex.com")
+            self.assertEqual(info["cm_client_id"], 42)
+            self.assertEqual(info["aliases"], ["X"])
+
+    def test_load_clients_aliases_is_a_copy_not_a_reference(self):
+        """Mutating the returned aliases list must not affect raw record state."""
+        from scripts.lib.vault_writer import load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(d)
+            self._write_clients_jsonl(data_root, [
+                {"domain": "ex.com", "name": "Ex", "aliases": ["X"]},
+            ])
+            clients_a = load_clients(data_root)
+            clients_a["ex.com"]["aliases"].append("Y")
+            clients_b = load_clients(data_root)
+            self.assertEqual(clients_b["ex.com"]["aliases"], ["X"],
+                             "load_clients must return fresh aliases list each call")
+
+
 if __name__ == "__main__":
     unittest.main()
