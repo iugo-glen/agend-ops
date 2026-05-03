@@ -226,13 +226,16 @@ Plans:
 
 ### Phase 12: Calendar + Drive Activity Enrichment
 
-**Goal:** Enrich client notes with meetings (Google Calendar, matched by attendee email → canonical `client_domain`) and documents (Google Drive, matched by folder/file name to clients) appended to the Activity Log section. Uses the existing `hardened-workspace` MCP — no new MCP registrations required.
-**Requirements**: TBD (extends INTL-01)
+**Goal:** Enrich client notes with meetings (Google Calendar, matched by attendee email -> canonical `client_domain`) and documents (Google Drive, matched by filename substring to clients per D-A4-REVISED) appended to the Activity Log section. Uses Google Calendar v3 + Drive v3 REST APIs directly via OAuth blob from hardened-workspace credentials per D-X1.
+**Requirements**: INTL-01-CAL, INTL-01-DRIVE, INTL-01-PRIVACY, INTL-01-WORKSPACE-CACHE, INTL-01-PROJECTION-ISOLATION (all extend INTL-01)
 **Depends on:** Phase 10, Phase 11
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 12 to break down)
+- [ ] 12-01-PLAN.md -- Wave 0 bootstrap: .gitignore cache exclusions, sync-obsidian.sh GOOGLE_MCP_CREDENTIALS_DIR validation, EMOJI_BY_KIND extension (meeting+doc), load_clients aliases plumbing
+- [ ] 12-02-PLAN.md -- workspace_client.py: HTTPS GET seam + retry/cache + OAuth refresh + privacy-filter adapters (D-D1/D-D2/D-D3) + endpoint allowlist (D-X1) + Drive walker
+- [ ] 12-03-PLAN.md -- vault_writer rendering surface: D-A4-REVISED filename matching + word-boundary helper + stop-list, D-A2 attendee-domain calendar router, _cal_meeting_event_tuple + _drive_doc_event_tuple, _gather_events extension with cal_events/drive_files kwargs (D-B2 top-20 cap)
+- [ ] 12-04-PLAN.md -- _fetch_external_data_for_run rename + Calendar/Drive integration into run_backfill, cache fallback chain, workspace_data_stale_since stamp, idempotency tests, Pitfall 1 invariant subprocess test (Mac daemon does not import workspace_client)
 
 ## Backlog
 

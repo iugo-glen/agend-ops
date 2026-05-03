@@ -50,7 +50,12 @@ Deferred beyond v2. Tracked but not in current roadmap.
 
 ### Intelligence
 
-- **INTL-01**: Context accumulation -- client history, past decisions stored in structured files (mapped to Phase 10, extended by Phase 11)
+- **INTL-01**: Context accumulation -- client history, past decisions stored in structured files (mapped to Phase 10, extended by Phase 11, Phase 12)
+- **INTL-01-CAL**: Calendar meetings matched by attendee email domain -> per-client Activity Log within rolling 90-day window with 📅 emoji + attendee count + Open-in-Calendar link (Phase 12)
+- **INTL-01-DRIVE**: Drive documents per filename matching -> per-client Activity Log, top-20 by modifiedTime, with 📝 emoji + modifier name + Open-in-Drive link (Phase 12)
+- **INTL-01-PRIVACY**: Privacy filters (visibility:private OR no-external-attendees, >25 attendees, Trash, drafts) applied before Activity Log render (Phase 12)
+- **INTL-01-WORKSPACE-CACHE**: Calendar+Drive use retry+cache fallback (3 retries 1s/5s/30s -> cache -> warning); cache files gitignored (Phase 12)
+- **INTL-01-PROJECTION-ISOLATION**: Mac daemon's run_projection does NOT import workspace_client (Pitfall 1 inheritance; subprocess negative test enforces) (Phase 12)
 - **INTL-02**: Learning from triage corrections -- improve categorization over time
 
 ### Productivity
@@ -88,13 +93,18 @@ Deferred beyond v2. Tracked but not in current roadmap.
 | DASH-03 | Phase 8 | Complete |
 | DASH-04 | Phase 8 | Complete |
 | INTL-01 | Phase 10 (foundation) + Phase 11 (CM data) | Context locked |
+| INTL-01-CAL | Phase 12 | Planned |
+| INTL-01-DRIVE | Phase 12 | Planned |
+| INTL-01-PRIVACY | Phase 12 | Planned |
+| INTL-01-WORKSPACE-CACHE | Phase 12 | Planned |
+| INTL-01-PROJECTION-ISOLATION | Phase 12 | Planned |
 
 **Coverage:**
-- v2 requirements: 14 total
-- Mapped to phases: 14
+- v2 requirements: 14 total + 5 Phase 12 sub-requirements = 19
+- Mapped to phases: 19
 - Unmapped: 0
-- v2 extensions added during milestone: INTL-01 mapped to Phase 10
+- v2 extensions added during milestone: INTL-01 mapped to Phase 10; INTL-01-* sub-requirements added during Phase 12 planning (2026-05-02)
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-23 after v2.0 roadmap creation*
+*Last updated: 2026-05-02 after Phase 12 planning*
