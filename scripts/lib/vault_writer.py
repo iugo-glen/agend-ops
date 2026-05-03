@@ -46,7 +46,14 @@ from ruamel.yaml import YAML
 
 # Constants ---------------------------------------------------------------
 
-EMOJI_BY_KIND = {"triage": "📧", "task": "✅", "invoice": "💰", "contract": "📄"}
+EMOJI_BY_KIND = {
+    "triage":   "📧",  # Phase 2
+    "task":     "✅",  # Phase 3
+    "invoice":  "💰",  # Phase 7
+    "contract": "📄",  # Phase 11 (RESERVED — do not reuse for Drive docs per D-C3)
+    "meeting":  "📅",  # Phase 12 — Calendar events
+    "doc":      "📝",  # Phase 12 — Drive files
+}
 GMAIL_THREAD_URL = "https://mail.google.com/mail/u/0/#inbox/{thread_id}"
 # Phase 11 D-B3 + D-C1 + D-C3-REVISED: managed sections in display order (CM-TODOS,
 # OPEN-ITEMS, USAGE, ACTIVITY-LOG). Sites is OMITTED per D-C2-REVISED.
@@ -206,7 +213,8 @@ def render_log_line(*, rec_ts_iso: str, kind: str, summary: str,
         > {detail}                          (only if detail given)
         > [Open thread]({gmail-url})        (only if gmail_thread_id given)
 
-    Emojis per kind: triage→📧, task→✅, invoice→💰 (EMOJI_BY_KIND).
+    Emojis per kind: triage→📧, task→✅, invoice→💰, contract→📄,
+    meeting→📅, doc→📝 (EMOJI_BY_KIND).
     """
     if kind not in EMOJI_BY_KIND:
         raise ValueError(f"unknown kind: {kind!r} (expected one of {list(EMOJI_BY_KIND)})")
@@ -356,7 +364,10 @@ def _atomic_write(file_path: Path, content: str) -> None:
 def load_clients(data_root: Path) -> dict[str, dict]:
     """Read `<data_root>/config/clients.jsonl` → dict mapping `domain` to client info.
 
-    Each value: `{"slug": str, "client_name": str, "domain": str, "status": "active"}`.
+    Each value: `{"slug": str, "client_name": str, "domain": str, "status": "active",
+    "cm_client_id": int|None, "aliases": list[str]}`. The `aliases` field defaults
+    to `[]` for records that omit it (Phase 12 D-A4-REVISED filename matcher iterates
+    this list; an empty list yields no alias matches, only domain-stem matches).
 
     Slug computed via `safe_slugify(name, domain)`. If two clients map to the same slug,
     BOTH are switched to the `slug_with_domain` collision-resistant form (Pattern 5)
@@ -381,6 +392,7 @@ def load_clients(data_root: Path) -> dict[str, dict]:
             "domain": domain,
             "status": rec.get("status", "active"),
             "cm_client_id": rec.get("cm_client_id"),
+            "aliases": list(rec.get("aliases") or []),
         })
 
     # First pass: assign safe slug per client.
@@ -391,6 +403,7 @@ def load_clients(data_root: Path) -> dict[str, dict]:
             "domain": r["domain"],
             "status": r["status"],
             "cm_client_id": r.get("cm_client_id"),
+            "aliases": list(r.get("aliases") or []),
         }
 
     # Collision detection: any slug owned by ≥2 domains is rewritten to slug_with_domain
