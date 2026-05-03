@@ -703,6 +703,70 @@ def _cm_invoice_event_tuple(inv: dict, local_tz_offset: str = "+10:30") -> tuple
     return (ts, "invoice", summary, detail, None)
 
 
+# Phase 12 event-tuple builders (D-C1 calendar + D-C2 drive) ---------------
+
+def _cal_meeting_event_tuple(event: dict, local_tz_offset: str = "+10:30") -> tuple:
+    """Build a D-C1 calendar meeting event tuple. kind="meeting" → 📅 emoji.
+
+    Source: format_calendar_event_for_log adapter dict (post-filter from Wave 2).
+    Returns: (ts_iso, "meeting", summary, detail, gmail_thread_id_or_none).
+
+    Pitfall 4: event ID is the stable dedup key (in _gather_events caller); the
+    title/date can change across runs without rotating the ID, so dedup by ID.
+
+    D-C1 verbatim:
+        ### [YYYY-MM-DD HH:MM] 📅 {title} — {N} attendees
+        > [Open in Calendar]({htmlLink})
+    """
+    raw_start = event.get("start_dt") or "1970-01-01T00:00:00"
+    if "T" not in raw_start:
+        # Date-only event (e.g. all-day) — append a midnight local-TZ offset.
+        ts = f"{raw_start}T00:00:00{local_tz_offset}"
+    elif raw_start.endswith("Z"):
+        # RFC3339 UTC with Z suffix → Python datetime/string handling expects +00:00 form.
+        ts = raw_start[:-1] + "+00:00"
+    else:
+        ts = raw_start
+
+    title = event.get("summary") or "(no title)"
+    n_attendees = len(event.get("attendees") or [])
+    summary = f"{title} — {n_attendees} attendees"
+
+    html_link = event.get("html_link") or ""
+    detail = f"[Open in Calendar]({html_link})" if html_link else None
+    return (ts, "meeting", summary, detail, None)
+
+
+def _drive_doc_event_tuple(file: dict, local_tz_offset: str = "+10:30") -> tuple:
+    """Build a D-C2 drive document event tuple. kind="doc" → 📝 emoji.
+
+    Source: format_drive_file_for_log adapter dict (post-filter from Wave 2).
+    Returns: (ts_iso, "doc", summary, detail, gmail_thread_id_or_none).
+
+    D-C2 verbatim:
+        ### [YYYY-MM-DD HH:MM] 📝 {filename} — modified by {modifier_name}
+        > [Open in Drive]({webViewLink})
+    """
+    raw_modified = file.get("modified_time") or "1970-01-01T00:00:00Z"
+    if raw_modified.endswith("Z"):
+        ts = raw_modified[:-1] + "+00:00"
+    else:
+        ts = raw_modified
+
+    name = file.get("name") or "(unnamed file)"
+    modifier = file.get("last_modifying_user") or {}
+    modifier_name = (
+        modifier.get("displayName")
+        or (modifier.get("emailAddress") or "").split("@", 1)[0]
+        or "unknown"
+    )
+    summary = f"{name} — modified by {modifier_name}"
+
+    web_link = file.get("web_view_link") or ""
+    detail = f"[Open in Drive]({web_link})" if web_link else None
+    return (ts, "doc", summary, detail, None)
+
+
 # Section renderers -------------------------------------------------------
 
 def render_open_items(slug: str, todos: list, tasks: list, clients: dict[str, dict]) -> str:
@@ -977,7 +1041,9 @@ def render_unknown_note(unmatched_events: list, last_synced_iso: str) -> str:
 
 def _gather_events(data_root: Path, clients: dict[str, dict],
                    cm_expiring: dict | None = None,
-                   cm_invoices: dict | None = None) -> tuple[dict, list]:
+                   cm_invoices: dict | None = None,
+                   cal_events: dict | None = None,
+                   drive_files: dict | None = None) -> tuple[dict, list]:
     """Stream all data sources → bucket events by client slug.
 
     Phase 10 sources (unchanged): triage (D-10 filter), tasks, invoices (D-11
@@ -989,6 +1055,19 @@ def _gather_events(data_root: Path, clients: dict[str, dict],
       - cm_invoices: structuredContent of list_overdue_invoices → CM invoice
         events, deduped against local data/invoices/active.jsonl by
         invoice_number (case-fold + trim only — see Pitfall 4).
+
+    Phase 12 additions:
+      - cal_events: workspace_client.format_calendar_event_for_log adapter
+        results (already privacy-filtered per D-D1+D-D2). Routed via attendee
+        email host → client domain (D-A2). Multi-client meetings → first
+        match by alphabetical client_domain order. Deduped by Google event ID
+        (Pitfall 4 inheritance).
+      - drive_files: workspace_client.format_drive_file_for_log adapter
+        results (already trash/draft-filtered per D-D3). Routed via filename
+        substring match against client_domain stem or aliases (D-A4-REVISED).
+        Per-client top 20 cap by modifiedTime desc (D-B2; input is pre-sorted).
+        No-match files silently dropped (Drive lacks the strong client signal
+        Calendar attendees provide).
 
     Returns `(events_by_slug, unknown_pairs)` where `unknown_pairs` is a list of
     `(event_tuple, source_record)` for the _Unknown.md grouping pass.
@@ -1060,6 +1139,56 @@ def _gather_events(data_root: Path, clients: dict[str, dict],
                 }))
             else:
                 events_by_slug[slug].append(evt)
+
+    # --- Phase 12: calendar meeting events (D-A2 + D-C1 + Pitfall 4 dedup) ---
+    seen_event_ids: set[str] = set()
+    if cal_events is not None:
+        for raw_event in cal_events.get("items", []) or []:
+            # Workspace adapter (Wave 2) already applied D-D1+D-D2 privacy filters.
+            event_id = raw_event.get("id")
+            if event_id and event_id in seen_event_ids:
+                continue  # Pitfall 4: dedup by Google event.id (NOT title/date)
+            if event_id:
+                seen_event_ids.add(event_id)
+            slug = _route_calendar_event_to_slug(raw_event, clients)
+            evt = _cal_meeting_event_tuple(raw_event)
+            if slug == "_Unknown":
+                first_attendee = (raw_event.get("attendees") or [{}])[0]
+                unknown_pairs.append((evt, {
+                    "client_name": "",
+                    "client_domain": "",
+                    "from": first_attendee.get("email", ""),
+                }))
+            else:
+                events_by_slug[slug].append(evt)
+
+    # --- Phase 12: drive document events (D-A4-REVISED + D-C2 + D-B2 + Pitfall 4) ---
+    seen_file_ids: set[str] = set()
+    drive_buckets: dict[str, list] = collections.defaultdict(list)
+    if drive_files is not None:
+        for raw_file in drive_files.get("files", []) or []:
+            file_id = raw_file.get("id")
+            if file_id and file_id in seen_file_ids:
+                continue
+            if file_id:
+                seen_file_ids.add(file_id)
+            domain = _match_drive_filename_to_client(
+                raw_file.get("name", ""), clients,
+            )
+            if domain is None:
+                # No client match — silently drop. Stop-list-only matches are
+                # counted in Wave 4's orchestrator (one info-level feed entry
+                # per sync summarises the count). Drive lacks Calendar's
+                # attendee-driven 'this belongs to a client even if unmapped'
+                # signal, so unmapped files don't go to _Unknown.md (D-A4-REVISED).
+                continue
+            slug = clients[domain]["slug"]
+            drive_buckets[slug].append(_drive_doc_event_tuple(raw_file))
+        # D-B2: cap top 20 per client by modifiedTime desc. Wave 2's walker
+        # already sorts the input by modifiedTime desc; here we slice each
+        # client's bucket to keep the Activity Log section phone-readable.
+        for slug, evts in drive_buckets.items():
+            events_by_slug[slug].extend(evts[:20])
 
     return events_by_slug, unknown_pairs
 
@@ -1925,6 +2054,7 @@ __all__ = [
     # MarkerError / Phase 11 cm helpers pattern).
     "_match_drive_filename_to_client", "_has_word_boundary_match",
     "_route_calendar_event_to_slug",
+    "_cal_meeting_event_tuple", "_drive_doc_event_tuple",
     "_DRIVE_FILENAME_STOP_LIST",
     "main",
 ]
