@@ -1731,5 +1731,368 @@ class TestCalendarRoutingPhase12(unittest.TestCase):
         self.assertEqual(_route_calendar_event_to_slug(event, clients), "iugo-self")
 
 
+class TestCalEventTuplePhase12(unittest.TestCase):
+    """Phase 12 D-C1: _cal_meeting_event_tuple shape + edge cases."""
+
+    def _event(self, **overrides) -> dict:
+        e = {
+            "id": "evt-001",
+            "summary": "Sync with PCA",
+            "start_dt": "2026-05-15T10:00:00+10:30",
+            "attendees": [
+                {"email": "glen@iugo.com.au"},
+                {"email": "craig@propertycouncil.com.au"},
+            ],
+            "html_link": "https://calendar.google.com/event?eid=xyz",
+            "visibility": "default",
+        }
+        e.update(overrides)
+        return e
+
+    def test_basic_meeting_tuple(self):
+        from scripts.lib.vault_writer import _cal_meeting_event_tuple
+        ts, kind, summary, detail, gmail = _cal_meeting_event_tuple(self._event())
+        self.assertEqual(kind, "meeting")
+        self.assertIn("Sync with PCA", summary)
+        self.assertIn("2 attendees", summary)
+        self.assertIn("[Open in Calendar]", detail)
+        self.assertIsNone(gmail)
+
+    def test_attendee_count_in_summary(self):
+        from scripts.lib.vault_writer import _cal_meeting_event_tuple
+        e = self._event(attendees=[{"email": f"u{i}@x.com"} for i in range(5)])
+        _, _, summary, _, _ = _cal_meeting_event_tuple(e)
+        self.assertIn("— 5 attendees", summary)
+
+    def test_no_html_link_yields_none_detail(self):
+        from scripts.lib.vault_writer import _cal_meeting_event_tuple
+        _, _, _, detail, _ = _cal_meeting_event_tuple(self._event(html_link=""))
+        self.assertIsNone(detail)
+
+    def test_date_only_start_normalised(self):
+        """All-day events use start.date (no T) → ts gets midnight + local TZ."""
+        from scripts.lib.vault_writer import _cal_meeting_event_tuple
+        ts, _, _, _, _ = _cal_meeting_event_tuple(
+            self._event(start_dt="2026-05-15"), local_tz_offset="+10:30")
+        self.assertEqual(ts, "2026-05-15T00:00:00+10:30")
+
+    def test_z_suffix_normalised(self):
+        """RFC3339 UTC with Z suffix → +00:00 form."""
+        from scripts.lib.vault_writer import _cal_meeting_event_tuple
+        ts, _, _, _, _ = _cal_meeting_event_tuple(
+            self._event(start_dt="2026-05-15T10:00:00Z"))
+        self.assertEqual(ts, "2026-05-15T10:00:00+00:00")
+
+    def test_missing_summary_uses_placeholder(self):
+        from scripts.lib.vault_writer import _cal_meeting_event_tuple
+        _, _, summary, _, _ = _cal_meeting_event_tuple(self._event(summary=None))
+        self.assertIn("(no title)", summary)
+
+
+class TestDriveEventTuplePhase12(unittest.TestCase):
+    """Phase 12 D-C2: _drive_doc_event_tuple shape + edge cases."""
+
+    def _file(self, **overrides) -> dict:
+        f = {
+            "id": "file-001",
+            "name": "Proposal-PCA-v3.docx",
+            "mime_type": "application/x",
+            "modified_time": "2026-05-01T14:00:00Z",
+            "web_view_link": "https://docs.google.com/document/d/xyz/edit",
+            "last_modifying_user": {"displayName": "Glen Rosie",
+                                     "emailAddress": "glen@iugo.com.au"},
+            "parents": ["root"],
+        }
+        f.update(overrides)
+        return f
+
+    def test_basic_drive_tuple(self):
+        from scripts.lib.vault_writer import _drive_doc_event_tuple
+        ts, kind, summary, detail, gmail = _drive_doc_event_tuple(self._file())
+        self.assertEqual(kind, "doc")
+        self.assertIn("Proposal-PCA-v3.docx", summary)
+        self.assertIn("Glen Rosie", summary)
+        self.assertIn("[Open in Drive]", detail)
+        self.assertIsNone(gmail)
+
+    def test_modifier_displayname_used(self):
+        from scripts.lib.vault_writer import _drive_doc_event_tuple
+        _, _, summary, _, _ = _drive_doc_event_tuple(self._file(
+            last_modifying_user={"displayName": "Alex Reynolds"}))
+        self.assertIn("modified by Alex Reynolds", summary)
+
+    def test_modifier_email_local_part_fallback(self):
+        """No displayName → use email local part."""
+        from scripts.lib.vault_writer import _drive_doc_event_tuple
+        _, _, summary, _, _ = _drive_doc_event_tuple(self._file(
+            last_modifying_user={"emailAddress": "alex@otaus.com.au"}))
+        self.assertIn("modified by alex", summary)
+
+    def test_modifier_unknown_fallback(self):
+        """Neither displayName nor emailAddress → 'unknown'."""
+        from scripts.lib.vault_writer import _drive_doc_event_tuple
+        _, _, summary, _, _ = _drive_doc_event_tuple(self._file(
+            last_modifying_user={}))
+        self.assertIn("modified by unknown", summary)
+
+    def test_no_web_link_yields_none_detail(self):
+        from scripts.lib.vault_writer import _drive_doc_event_tuple
+        _, _, _, detail, _ = _drive_doc_event_tuple(self._file(web_view_link=""))
+        self.assertIsNone(detail)
+
+    def test_z_suffix_normalised(self):
+        from scripts.lib.vault_writer import _drive_doc_event_tuple
+        ts, _, _, _, _ = _drive_doc_event_tuple(self._file(
+            modified_time="2026-05-01T14:00:00Z"))
+        self.assertEqual(ts, "2026-05-01T14:00:00+00:00")
+
+    def test_missing_name_uses_placeholder(self):
+        from scripts.lib.vault_writer import _drive_doc_event_tuple
+        _, _, summary, _, _ = _drive_doc_event_tuple(self._file(name=None))
+        self.assertIn("(unnamed file)", summary)
+
+
+class TestGatherEventsCalendarIntegration(unittest.TestCase):
+    """Phase 12 D-A2 + Pitfall 4: _gather_events cal_events branch."""
+
+    def _setup(self, d: Path) -> Path:
+        config = d / "config"
+        config.mkdir()
+        (d / "triage").mkdir()
+        (d / "tasks").mkdir()
+        (d / "invoices").mkdir()
+        (d / "todos").mkdir()
+        (config / "clients.jsonl").write_text(
+            json.dumps({"domain": "propertycouncil.com.au", "name": "PCA",
+                        "aliases": ["PCA", "pca"], "cm_client_id": 1}) + "\n",
+            encoding="utf-8",
+        )
+        (d / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+        (d / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+        return d
+
+    def test_includes_meeting_events_when_cal_events_provided(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            cal_events = {"items": [
+                {"id": "evt1", "summary": "Sync with PCA",
+                 "start_dt": "2026-05-15T10:00:00+10:30",
+                 "attendees": [{"email": "craig@propertycouncil.com.au"}],
+                 "html_link": "https://cal.google.com/x"},
+            ]}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               cal_events=cal_events)
+            slug = clients["propertycouncil.com.au"]["slug"]
+            kinds = [e[1] for e in events_by_slug.get(slug, [])]
+            self.assertIn("meeting", kinds)
+
+    def test_unmapped_attendee_routes_to_unknown(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            cal_events = {"items": [
+                {"id": "evt2", "summary": "Random",
+                 "start_dt": "2026-05-15T10:00:00+10:30",
+                 "attendees": [{"email": "stranger@unknown.com"}],
+                 "html_link": ""},
+            ]}
+            _, unknown_pairs = _gather_events(data_root, clients,
+                                              cal_events=cal_events)
+            kinds = [evt[1] for (evt, _src) in unknown_pairs]
+            self.assertIn("meeting", kinds)
+
+    def test_dedup_by_event_id_not_title(self):
+        """Pitfall 4: same event ID + different title → only ONE entry."""
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            cal_events = {"items": [
+                {"id": "evt-stable", "summary": "Title v1",
+                 "start_dt": "2026-05-15T10:00:00+10:30",
+                 "attendees": [{"email": "craig@propertycouncil.com.au"}],
+                 "html_link": ""},
+                {"id": "evt-stable", "summary": "Title v2 (edited)",
+                 "start_dt": "2026-05-15T10:00:00+10:30",
+                 "attendees": [{"email": "craig@propertycouncil.com.au"}],
+                 "html_link": ""},
+            ]}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               cal_events=cal_events)
+            slug = clients["propertycouncil.com.au"]["slug"]
+            meeting_count = sum(1 for e in events_by_slug.get(slug, [])
+                                if e[1] == "meeting")
+            self.assertEqual(meeting_count, 1)
+
+    def test_two_distinct_events_two_entries(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            cal_events = {"items": [
+                {"id": "evt-A", "summary": "Meeting A",
+                 "start_dt": "2026-05-15T10:00:00+10:30",
+                 "attendees": [{"email": "craig@propertycouncil.com.au"}],
+                 "html_link": ""},
+                {"id": "evt-B", "summary": "Meeting B",
+                 "start_dt": "2026-05-16T10:00:00+10:30",
+                 "attendees": [{"email": "craig@propertycouncil.com.au"}],
+                 "html_link": ""},
+            ]}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               cal_events=cal_events)
+            slug = clients["propertycouncil.com.au"]["slug"]
+            meeting_count = sum(1 for e in events_by_slug.get(slug, [])
+                                if e[1] == "meeting")
+            self.assertEqual(meeting_count, 2)
+
+    def test_no_cal_kwargs_unchanged_phase11_behaviour(self):
+        """Backwards compat: omit cal_events → Phase 11 callers behave identically."""
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            ev_p11_style, _ = _gather_events(data_root, clients)  # Phase 11 signature
+            ev_p12_explicit, _ = _gather_events(data_root, clients,
+                                                cal_events=None, drive_files=None)
+            self.assertEqual(ev_p11_style, ev_p12_explicit)
+
+
+class TestGatherEventsDriveIntegration(unittest.TestCase):
+    """Phase 12 D-A4-REVISED + D-B2 + Pitfall 4: _gather_events drive_files branch."""
+
+    def _setup(self, d: Path) -> Path:
+        config = d / "config"
+        config.mkdir()
+        (d / "triage").mkdir()
+        (d / "tasks").mkdir()
+        (d / "invoices").mkdir()
+        (d / "todos").mkdir()
+        (config / "clients.jsonl").write_text(
+            json.dumps({"domain": "propertycouncil.com.au", "name": "PCA",
+                        "aliases": ["PCA", "pca"], "cm_client_id": 1}) + "\n",
+            encoding="utf-8",
+        )
+        (d / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+        (d / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+        return d
+
+    def _drive_file(self, **overrides) -> dict:
+        f = {
+            "id": "file-001",
+            "name": "PCA-Proposal-v3.docx",
+            "mime_type": "application/x",
+            "modified_time": "2026-05-01T14:00:00Z",
+            "web_view_link": "https://docs.google.com/d/xyz",
+            "last_modifying_user": {"displayName": "Glen Rosie"},
+            "parents": ["root"],
+        }
+        f.update(overrides)
+        return f
+
+    def test_includes_doc_events_when_drive_files_provided(self):
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            drive_files = {"files": [self._drive_file()]}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               drive_files=drive_files)
+            slug = clients["propertycouncil.com.au"]["slug"]
+            kinds = [e[1] for e in events_by_slug.get(slug, [])]
+            self.assertIn("doc", kinds)
+
+    def test_unmatched_file_silently_dropped(self):
+        """D-A4-REVISED: no-match files are NOT routed (neither to slug nor to _Unknown)."""
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            drive_files = {"files": [self._drive_file(name="random_doc.docx", id="f-rand")]}
+            events_by_slug, unknown_pairs = _gather_events(
+                data_root, clients, drive_files=drive_files)
+            doc_events = sum(1 for evts in events_by_slug.values()
+                             for e in evts if e[1] == "doc")
+            unknown_doc_events = sum(1 for (e, _) in unknown_pairs if e[1] == "doc")
+            self.assertEqual(doc_events, 0)
+            self.assertEqual(unknown_doc_events, 0)
+
+    def test_dedup_by_file_id(self):
+        """Pitfall 4: same file ID twice → only ONE entry."""
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            drive_files = {"files": [
+                self._drive_file(id="f-stable", name="PCA-v1.docx"),
+                self._drive_file(id="f-stable", name="PCA-v2.docx"),
+            ]}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               drive_files=drive_files)
+            slug = clients["propertycouncil.com.au"]["slug"]
+            doc_count = sum(1 for e in events_by_slug.get(slug, []) if e[1] == "doc")
+            self.assertEqual(doc_count, 1)
+
+    def test_top_20_cap_per_client(self):
+        """D-B2: per-client cap = 20 by modifiedTime desc (input is pre-sorted)."""
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            # 25 files all matching PCA, fresh-to-old by modified_time
+            files = []
+            for i in range(25):
+                ts = f"2026-05-{(i+1):02d}T10:00:00Z"
+                files.append(self._drive_file(id=f"f-{i:02d}",
+                                               name=f"PCA-doc-{i:02d}.docx",
+                                               modified_time=ts))
+            # Walker sorts desc → reverse the input list (newest first)
+            files.reverse()
+            drive_files = {"files": files}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               drive_files=drive_files)
+            slug = clients["propertycouncil.com.au"]["slug"]
+            doc_count = sum(1 for e in events_by_slug.get(slug, []) if e[1] == "doc")
+            self.assertEqual(doc_count, 20)
+
+    def test_top_20_preserves_order_newest_first(self):
+        """The 20 retained docs must be the 20 NEWEST (input is desc-sorted)."""
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            files = []
+            for i in range(25):
+                ts = f"2026-05-{(i+1):02d}T10:00:00Z"
+                files.append(self._drive_file(id=f"f-{i:02d}",
+                                               name=f"PCA-doc-{i:02d}.docx",
+                                               modified_time=ts))
+            files.reverse()  # newest first (id f-24 down to f-00)
+            drive_files = {"files": files}
+            events_by_slug, _ = _gather_events(data_root, clients,
+                                               drive_files=drive_files)
+            slug = clients["propertycouncil.com.au"]["slug"]
+            doc_summaries = [e[2] for e in events_by_slug.get(slug, [])
+                             if e[1] == "doc"]
+            # The most recent file (i=24, "PCA-doc-24") MUST appear.
+            self.assertTrue(any("PCA-doc-24" in s for s in doc_summaries))
+            # The oldest file (i=0, "PCA-doc-00") MUST NOT appear (cap drops it).
+            self.assertFalse(any("PCA-doc-00" in s for s in doc_summaries))
+
+    def test_no_drive_kwargs_unchanged_phase11_behaviour(self):
+        """Backwards compat: omit drive_files → Phase 11 callers behave identically."""
+        from scripts.lib.vault_writer import _gather_events, load_clients
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            clients = load_clients(data_root)
+            ev_p11_style, _ = _gather_events(data_root, clients)
+            ev_p12_explicit, _ = _gather_events(data_root, clients,
+                                                cal_events=None, drive_files=None)
+            self.assertEqual(ev_p11_style, ev_p12_explicit)
+
+
 if __name__ == "__main__":
     unittest.main()
