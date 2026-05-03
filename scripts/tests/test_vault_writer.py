@@ -1437,5 +1437,282 @@ class TestLoadClientsAliasesPhase12(unittest.TestCase):
                              "load_clients must return fresh aliases list each call")
 
 
+class TestHasWordBoundaryMatch(unittest.TestCase):
+    """Phase 12 D-A4-REVISED rule 3: word-boundary regex helper."""
+
+    def test_match_at_start(self):
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertTrue(_has_word_boundary_match("pca-update.docx", "pca"))
+
+    def test_match_at_end(self):
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertTrue(_has_word_boundary_match("update-pca", "pca"))
+
+    def test_match_in_middle_with_dashes(self):
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertTrue(_has_word_boundary_match("agend-pca-sco", "pca"))
+
+    def test_no_match_substring(self):
+        """Critical: 'stav' must NOT match 'staffing' (no word boundary)."""
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertFalse(_has_word_boundary_match("staffing.docx", "stav"))
+
+    def test_match_with_dot_delimiter(self):
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertTrue(_has_word_boundary_match("report.pca.docx", "pca"))
+
+    def test_match_with_space_delimiter(self):
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertTrue(_has_word_boundary_match("agend x pca sco", "pca"))
+
+    def test_empty_needle(self):
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertFalse(_has_word_boundary_match("anything", ""))
+
+    def test_empty_haystack(self):
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertFalse(_has_word_boundary_match("", "pca"))
+
+    def test_regex_metacharacters_escaped(self):
+        """Defensive: alias '.+' (regex metachar) is escaped — matches the literal."""
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertTrue(_has_word_boundary_match("report.+.docx", ".+"))
+
+    def test_no_partial_word_match(self):
+        """D-A4-REVISED rule 3: 'pca' must NOT match 'spca-foo' (no boundary at start)."""
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        self.assertFalse(_has_word_boundary_match("spca-foo.docx", "pca"))
+
+
+class TestFilenameMatchingPhase12(unittest.TestCase):
+    """Phase 12 D-A4-REVISED: _match_drive_filename_to_client end-to-end rules."""
+
+    def _clients(self, *records) -> dict[str, dict]:
+        """Build a clients dict for testing (mirrors load_clients output shape)."""
+        out = {}
+        for r in records:
+            out[r["domain"]] = {
+                "slug": r.get("slug") or r["domain"].split(".")[0],
+                "client_name": r.get("name") or r["domain"],
+                "domain": r["domain"],
+                "status": "active",
+                "cm_client_id": r.get("cm_client_id"),
+                "aliases": r.get("aliases") or [],
+            }
+        return out
+
+    def test_simple_alias_match(self):
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA", "aliases": ["PCA"]},
+        )
+        result = _match_drive_filename_to_client("PCA-SCO-Gap-Analysis-v3.docx", clients)
+        self.assertEqual(result, "propertycouncil.com.au")
+
+    def test_domain_stem_match(self):
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA", "aliases": []},
+        )
+        result = _match_drive_filename_to_client("propertycouncil-update.docx", clients)
+        self.assertEqual(result, "propertycouncil.com.au")
+
+    def test_case_insensitive(self):
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA", "aliases": ["PCA"]},
+        )
+        # filename lowercase, alias uppercase
+        self.assertEqual(_match_drive_filename_to_client("pca-sco.docx", clients),
+                         "propertycouncil.com.au")
+        # filename uppercase, alias uppercase
+        self.assertEqual(_match_drive_filename_to_client("PCA-SCO.DOCX", clients),
+                         "propertycouncil.com.au")
+
+    def test_word_boundary_excludes_substring(self):
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        clients = self._clients(
+            {"domain": "stav.org", "name": "STAV", "aliases": ["STAV"]},
+        )
+        # `STAV` MUST NOT match `staffing.docx` (D-A4-REVISED rule 3)
+        self.assertIsNone(_match_drive_filename_to_client("staffing.docx", clients))
+
+    def test_word_boundary_underscore_delimiter(self):
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        clients = self._clients(
+            {"domain": "otaus.com.au", "name": "OTA", "aliases": ["OTA"]},
+        )
+        self.assertEqual(_match_drive_filename_to_client("OTA_SOW_v1.1.docx", clients),
+                         "otaus.com.au")
+
+    def test_longest_alias_wins(self):
+        """D-A4-REVISED rule 4: 'PCNZ' beats 'PC' on length."""
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        clients = self._clients(
+            {"domain": "pc.example.com", "name": "PC", "aliases": ["PC"]},
+            {"domain": "pcnz.org.nz", "name": "PCNZ", "aliases": ["PCNZ"]},
+        )
+        # filename 'PCNZ-update.docx' contains BOTH 'PC' (substring) and 'PCNZ'
+        # — but only PCNZ matches at word boundaries (rule 3); even if both did,
+        # PCNZ wins by length (rule 4).
+        result = _match_drive_filename_to_client("PCNZ-update.docx", clients)
+        self.assertEqual(result, "pcnz.org.nz")
+
+    def test_alphabetical_tie_break_on_equal_length(self):
+        """D-A4-REVISED rule 5: equal-length aliases → alphabetical first wins."""
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        clients = self._clients(
+            {"domain": "alpha.org", "name": "Alpha", "aliases": ["XYZ"]},
+            {"domain": "beta.org", "name": "Beta", "aliases": ["XYZ"]},
+        )
+        # Both clients have alias XYZ; alphabetical first by alias-then-domain wins.
+        # Sort key is (-len, needle, domain) → ('xyz', 'alpha.org') < ('xyz', 'beta.org')
+        result = _match_drive_filename_to_client("XYZ-update.docx", clients)
+        self.assertEqual(result, "alpha.org")
+
+    def test_multi_word_filename_with_alias(self):
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA", "aliases": ["PCA"]},
+        )
+        result = _match_drive_filename_to_client(
+            "Agend x PCA SCO - Statement of Work v1.0", clients)
+        self.assertEqual(result, "propertycouncil.com.au")
+
+    def test_no_match_returns_none(self):
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA", "aliases": ["PCA"]},
+        )
+        self.assertIsNone(_match_drive_filename_to_client("random_doc.docx", clients))
+
+    def test_empty_clients_returns_none(self):
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        self.assertIsNone(_match_drive_filename_to_client("anything.docx", {}))
+
+    def test_iugo_filename_no_client_match(self):
+        """CONTEXT.md test case: 'Iugo_Pty_Ltd_-_Profit_and_Loss.xlsx' →
+        no client match (the matcher is pure; stop-list silent-skip lives in caller)."""
+        from scripts.lib.vault_writer import _match_drive_filename_to_client
+        # No client with 'iugo' as alias or domain stem
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA", "aliases": ["PCA"]},
+        )
+        self.assertIsNone(_match_drive_filename_to_client(
+            "Iugo_Pty_Ltd_-_Profit_and_Loss.xlsx", clients))
+
+    def test_stop_list_constant_present(self):
+        """Sanity check: _DRIVE_FILENAME_STOP_LIST is defined and contains expected tokens."""
+        from scripts.lib.vault_writer import _DRIVE_FILENAME_STOP_LIST
+        self.assertIn("agend", _DRIVE_FILENAME_STOP_LIST)
+        self.assertIn("iugo", _DRIVE_FILENAME_STOP_LIST)
+        self.assertIn("glen", _DRIVE_FILENAME_STOP_LIST)
+        self.assertIn("rosie", _DRIVE_FILENAME_STOP_LIST)
+
+
+class TestCalendarRoutingPhase12(unittest.TestCase):
+    """Phase 12 D-A2: _route_calendar_event_to_slug attendee-email-domain matching."""
+
+    def _clients(self, *records) -> dict[str, dict]:
+        out = {}
+        for r in records:
+            out[r["domain"]] = {
+                "slug": r.get("slug") or r["domain"].split(".")[0],
+                "client_name": r.get("name") or r["domain"],
+                "domain": r["domain"],
+                "status": "active",
+                "cm_client_id": r.get("cm_client_id"),
+                "aliases": r.get("aliases") or [],
+            }
+        return out
+
+    def test_route_via_attendee_domain_match(self):
+        from scripts.lib.vault_writer import _route_calendar_event_to_slug
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA"},
+        )
+        event = {"attendees": [{"email": "craig@propertycouncil.com.au"}]}
+        slug = _route_calendar_event_to_slug(event, clients)
+        self.assertEqual(slug, clients["propertycouncil.com.au"]["slug"])
+
+    def test_no_attendee_returns_unknown(self):
+        from scripts.lib.vault_writer import _route_calendar_event_to_slug
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA"},
+        )
+        self.assertEqual(_route_calendar_event_to_slug({"attendees": []}, clients),
+                         "_Unknown")
+        self.assertEqual(_route_calendar_event_to_slug({}, clients), "_Unknown")
+
+    def test_no_match_returns_unknown(self):
+        from scripts.lib.vault_writer import _route_calendar_event_to_slug
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA"},
+        )
+        event = {"attendees": [{"email": "external@unknown.com"}]}
+        self.assertEqual(_route_calendar_event_to_slug(event, clients), "_Unknown")
+
+    def test_alphabetical_first_match_wins_multi_client(self):
+        """D-A2: meeting attendees span PCA + ATEM → ATEM wins (alphabetical < propertycouncil)."""
+        from scripts.lib.vault_writer import _route_calendar_event_to_slug
+        clients = self._clients(
+            {"domain": "atem.org.au", "name": "ATEM", "slug": "atem-slug"},
+            {"domain": "propertycouncil.com.au", "name": "PCA", "slug": "pca-slug"},
+        )
+        event = {"attendees": [
+            {"email": "craig@propertycouncil.com.au"},
+            {"email": "ml@atem.org.au"},
+        ]}
+        slug = _route_calendar_event_to_slug(event, clients)
+        self.assertEqual(slug, "atem-slug",
+                         "atem.org.au sorts before propertycouncil.com.au; first-match-wins")
+
+    def test_attendee_without_at_sign_skipped(self):
+        from scripts.lib.vault_writer import _route_calendar_event_to_slug
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA"},
+        )
+        event = {"attendees": [
+            {"email": "malformed_no_at_sign"},
+            {"email": "craig@propertycouncil.com.au"},
+        ]}
+        slug = _route_calendar_event_to_slug(event, clients)
+        self.assertEqual(slug, clients["propertycouncil.com.au"]["slug"])
+
+    def test_case_insensitive_email_host(self):
+        from scripts.lib.vault_writer import _route_calendar_event_to_slug
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA"},
+        )
+        event = {"attendees": [{"email": "Craig@PROPERTYCOUNCIL.COM.AU"}]}
+        slug = _route_calendar_event_to_slug(event, clients)
+        self.assertEqual(slug, clients["propertycouncil.com.au"]["slug"])
+
+    def test_route_via_attendee_alias_equality(self):
+        """D-A2: attendee host can match a client alias (case-insensitive equality)."""
+        from scripts.lib.vault_writer import _route_calendar_event_to_slug
+        clients = self._clients(
+            {"domain": "propertycouncil.com.au", "name": "PCA",
+             "aliases": ["pca"], "slug": "pca-slug"},
+        )
+        # Hypothetical attendee from "@pca" host (rare but possible if Glen sets up
+        # an alias for a sibling/legacy domain).
+        event = {"attendees": [{"email": "someone@pca"}]}
+        self.assertEqual(_route_calendar_event_to_slug(event, clients), "pca-slug")
+
+    def test_internal_attendee_routes_if_iugo_is_a_client(self):
+        """D-A2 doesn't filter by external; that's D-D1's job (in workspace_client adapter)."""
+        from scripts.lib.vault_writer import _route_calendar_event_to_slug
+        clients = self._clients(
+            {"domain": "iugo.com.au", "name": "Iugo (self)", "slug": "iugo-self"},
+        )
+        event = {"attendees": [{"email": "glen@iugo.com.au"}]}
+        # If Glen ever adds his own domain as a client (unlikely but possible),
+        # the routing rule is unchanged — D-D1's external-attendee filter is what
+        # would normally drop this; that filter ran in workspace_client BEFORE
+        # this routing helper sees the event.
+        self.assertEqual(_route_calendar_event_to_slug(event, clients), "iugo-self")
+
+
 if __name__ == "__main__":
     unittest.main()
