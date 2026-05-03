@@ -2094,5 +2094,122 @@ class TestGatherEventsDriveIntegration(unittest.TestCase):
             self.assertEqual(ev_p11_style, ev_p12_explicit)
 
 
+class TestStopListSilentSkipCounter(unittest.TestCase):
+    """Phase 12 D-A4-REVISED: stop-list-only filename matches counted in feed."""
+
+    def _setup(self, d: Path) -> Path:
+        config = d / "config"
+        config.mkdir()
+        (d / "triage").mkdir()
+        (d / "tasks").mkdir()
+        (d / "invoices").mkdir()
+        (d / "todos").mkdir()
+        (config / "clients.jsonl").write_text(
+            json.dumps({"domain": "propertycouncil.com.au", "name": "PCA",
+                        "aliases": ["PCA"], "cm_client_id": 1}) + "\n",
+            encoding="utf-8",
+        )
+        (d / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+        (d / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+        return d
+
+    def test_orchestrator_counts_stop_list_skips(self):
+        """5 files, 2 stop-list-only → ONE info-level feed entry with count=2."""
+        import unittest.mock as mock
+        from scripts.lib.vault_writer import _fetch_external_data_for_run, load_clients
+        from datetime import datetime, timezone, timedelta
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            feed = data_root / "feed.jsonl"
+            feed.touch()
+            # Pre-populate creds + drive cache so the orchestrator runs without
+            # hitting the OAuth path (we mock the walker output below).
+            creds_dir = Path(d) / "creds"
+            creds_dir.mkdir()
+            far_future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            (creds_dir / "glen@iugo.com.au.json").write_text(json.dumps({
+                "token": "tok", "refresh_token": "rt", "client_id": "c",
+                "client_secret": "s", "expiry": far_future,
+            }), encoding="utf-8")
+            clients = load_clients(data_root)
+
+            with mock.patch.dict(os.environ, {
+                    "CONTRACT_MANAGER_API_KEY": "",  # CM skipped (Phase 11 graceful)
+                    "GOOGLE_MCP_CREDENTIALS_DIR": str(creds_dir),
+                    "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au",
+                 }), \
+                 mock.patch("scripts.lib.workspace_client._walk_drive_for_clients") as wd, \
+                 mock.patch("scripts.lib.workspace_client.call_with_retry") as cw:
+                # Calendar returns empty (no events to process)
+                cw.return_value = {"items": []}
+                # Drive walker returns 5 files: 2 stop-list-only, 1 PCA match,
+                # 2 no-match (no client AND no stop-list)
+                wd.return_value = {"files": [
+                    {"id": "f1", "name": "PCA-Proposal.docx",
+                     "modified_time": "2026-05-01T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                    {"id": "f2", "name": "iugo-personal-notes.docx",
+                     "modified_time": "2026-05-02T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                    {"id": "f3", "name": "Glen-private.txt",
+                     "modified_time": "2026-05-03T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                    {"id": "f4", "name": "totally-unrelated-file.docx",
+                     "modified_time": "2026-05-04T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                    {"id": "f5", "name": "another-random.docx",
+                     "modified_time": "2026-05-05T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                ]}
+                result = _fetch_external_data_for_run(data_root, clients, feed)
+            # Stop-list count: f2 (iugo) + f3 (glen) = 2
+            self.assertEqual(result["drive_stop_list_skipped"], 2)
+            feed_text = feed.read_text(encoding="utf-8")
+            # ONE info-level entry mentioning the count
+            self.assertIn('"level": "info"', feed_text)
+            self.assertIn("stop-list-only", feed_text)
+            self.assertIn("2", feed_text)
+
+    def test_orchestrator_no_stop_list_entry_when_zero_skips(self):
+        """All files match a real client → NO 'stop-list' info entry."""
+        import unittest.mock as mock
+        from scripts.lib.vault_writer import _fetch_external_data_for_run, load_clients
+        from datetime import datetime, timezone, timedelta
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            feed = data_root / "feed.jsonl"
+            feed.touch()
+            creds_dir = Path(d) / "creds"
+            creds_dir.mkdir()
+            far_future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            (creds_dir / "glen@iugo.com.au.json").write_text(json.dumps({
+                "token": "tok", "refresh_token": "rt", "client_id": "c",
+                "client_secret": "s", "expiry": far_future,
+            }), encoding="utf-8")
+            clients = load_clients(data_root)
+
+            with mock.patch.dict(os.environ, {
+                    "CONTRACT_MANAGER_API_KEY": "",
+                    "GOOGLE_MCP_CREDENTIALS_DIR": str(creds_dir),
+                    "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au",
+                 }), \
+                 mock.patch("scripts.lib.workspace_client._walk_drive_for_clients") as wd, \
+                 mock.patch("scripts.lib.workspace_client.call_with_retry") as cw:
+                cw.return_value = {"items": []}
+                wd.return_value = {"files": [
+                    {"id": "f1", "name": "PCA-Proposal.docx",
+                     "modified_time": "2026-05-01T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                ]}
+                result = _fetch_external_data_for_run(data_root, clients, feed)
+            self.assertEqual(result["drive_stop_list_skipped"], 0)
+            feed_text = feed.read_text(encoding="utf-8")
+            self.assertNotIn("stop-list-only", feed_text)
+
+
 if __name__ == "__main__":
     unittest.main()
