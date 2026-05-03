@@ -7,6 +7,7 @@ All tests mock urllib.request.urlopen for the seam-level class (TestWorkspaceCli
 and mock _workspace_get for higher-level classes (TestWorkspaceCallWithRetry, etc.).
 """
 import json
+import os
 import unittest
 import unittest.mock as mock
 from pathlib import Path
@@ -466,6 +467,198 @@ class TestDriveFileAdapter(unittest.TestCase):
         from scripts.lib.workspace_client import format_drive_file_for_log
         result = format_drive_file_for_log(self._file(id="stable-drive-file-id-xyz"))
         self.assertEqual(result["id"], "stable-drive-file-id-xyz")
+
+
+class TestOAuthTokenLoader(unittest.TestCase):
+    """Phase 12: OAuth blob read + refresh flow."""
+
+    def _write_creds(self, dir_path: Path, email: str, expiry_iso: str,
+                      token: str = "stored_access") -> Path:
+        path = dir_path / f"{email}.json"
+        path.write_text(json.dumps({
+            "token": token,
+            "refresh_token": "rt_xxx",
+            "client_id": "cid",
+            "client_secret": "csec",
+            "expiry": expiry_iso,
+        }), encoding="utf-8")
+        return path
+
+    @patch("scripts.lib.workspace_client.urllib.request.urlopen")
+    def test_load_credentials_returns_existing_token_when_not_expiring(self, mock_urlopen):
+        from scripts.lib.workspace_client import _load_workspace_credentials
+        from datetime import datetime, timezone, timedelta
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            far_future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self._write_creds(Path(d), "glen@iugo.com.au", far_future, token="fresh_token")
+            with mock.patch.dict(os.environ, {"GOOGLE_MCP_CREDENTIALS_DIR": d,
+                                              "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au"}):
+                token = _load_workspace_credentials()
+            self.assertEqual(token, "fresh_token")
+            mock_urlopen.assert_not_called()
+
+    @patch("scripts.lib.workspace_client.urllib.request.urlopen")
+    def test_load_credentials_refreshes_when_expiring_soon(self, mock_urlopen):
+        from scripts.lib.workspace_client import _load_workspace_credentials
+        from datetime import datetime, timezone, timedelta
+        import tempfile
+        # Mock refresh response
+        m = MagicMock()
+        m.read.return_value = json.dumps({
+            "access_token": "REFRESHED_ACCESS",
+            "expires_in": 3600,
+            "scope": "x", "token_type": "Bearer",
+        }).encode("utf-8")
+        m.__enter__ = lambda self_: m
+        m.__exit__ = lambda self_, *args: False
+        mock_urlopen.return_value = m
+        with tempfile.TemporaryDirectory() as d:
+            soon = (datetime.now(timezone.utc) + timedelta(seconds=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self._write_creds(Path(d), "glen@iugo.com.au", soon, token="OLD_ACCESS")
+            with mock.patch.dict(os.environ, {"GOOGLE_MCP_CREDENTIALS_DIR": d,
+                                              "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au"}):
+                token = _load_workspace_credentials()
+            self.assertEqual(token, "REFRESHED_ACCESS")
+            mock_urlopen.assert_called_once()
+            # Verify the request was POSTed to the OAuth endpoint
+            req = mock_urlopen.call_args[0][0]
+            self.assertEqual(req.get_method(), "POST")
+            self.assertIn("oauth2.googleapis.com/token", req.full_url)
+
+    def test_load_credentials_raises_on_missing_file(self):
+        from scripts.lib.workspace_client import (
+            _load_workspace_credentials, WorkspaceTransportError,
+        )
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.dict(os.environ, {"GOOGLE_MCP_CREDENTIALS_DIR": d,
+                                              "GOOGLE_PRIMARY_EMAIL": "missing@example.com"}):
+                with self.assertRaises(WorkspaceTransportError) as ctx:
+                    _load_workspace_credentials()
+                self.assertIn("credentials missing", str(ctx.exception))
+
+    @patch("scripts.lib.workspace_client.urllib.request.urlopen")
+    def test_load_credentials_raises_on_refresh_failure(self, mock_urlopen):
+        from scripts.lib.workspace_client import (
+            _load_workspace_credentials, WorkspaceTransportError,
+        )
+        from datetime import datetime, timezone, timedelta
+        import tempfile
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="x", code=400, msg="invalid_grant", hdrs={}, fp=None,
+        )
+        with tempfile.TemporaryDirectory() as d:
+            soon = (datetime.now(timezone.utc) + timedelta(seconds=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self._write_creds(Path(d), "glen@iugo.com.au", soon)
+            with mock.patch.dict(os.environ, {"GOOGLE_MCP_CREDENTIALS_DIR": d,
+                                              "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au"}):
+                with self.assertRaises(WorkspaceTransportError) as ctx:
+                    _load_workspace_credentials()
+                self.assertIn("credentials refresh failed", str(ctx.exception))
+
+
+class TestDriveWalker(unittest.TestCase):
+    """Phase 12 D-A3-REVISED: _walk_drive_for_clients single-call list with D-D3 filter applied."""
+
+    @patch("scripts.lib.workspace_client._workspace_get")
+    def test_walk_drive_returns_filtered_files(self, mock_get):
+        from scripts.lib.workspace_client import _walk_drive_for_clients
+        mock_get.return_value = {
+            "files": [
+                {"id": "f1", "name": "Proposal.docx", "mimeType": "application/x",
+                 "modifiedTime": "2026-05-01T10:00:00Z",
+                 "webViewLink": "https://docs.google.com/d/f1",
+                 "lastModifyingUser": {"displayName": "Glen"},
+                 "trashed": False, "parents": ["root"]},
+                {"id": "f2", "name": "Notes.gdraft", "mimeType": "application/x",
+                 "modifiedTime": "2026-05-02T10:00:00Z", "webViewLink": "x",
+                 "lastModifyingUser": {}, "trashed": False, "parents": ["root"]},
+                {"id": "f3", "name": "Deleted.docx", "mimeType": "application/x",
+                 "modifiedTime": "2026-05-03T10:00:00Z", "webViewLink": "x",
+                 "lastModifyingUser": {}, "trashed": True, "parents": ["root"]},
+            ]
+        }
+        result = _walk_drive_for_clients("test_token")
+        self.assertEqual(len(result["files"]), 1)
+        self.assertEqual(result["files"][0]["id"], "f1")
+        self.assertEqual(result["files"][0]["name"], "Proposal.docx")
+
+    @patch("scripts.lib.workspace_client._workspace_get")
+    def test_walk_drive_passes_required_fields_query_param(self, mock_get):
+        from scripts.lib.workspace_client import _walk_drive_for_clients
+        mock_get.return_value = {"files": []}
+        _walk_drive_for_clients("test_token")
+        # Verify the params dict passed to _workspace_get
+        api_path, params, token = mock_get.call_args[0]
+        self.assertEqual(api_path, "drive/v3/files")
+        self.assertIn("lastModifyingUser", params["fields"])
+        self.assertEqual(params["orderBy"], "modifiedTime desc")
+        self.assertIn("trashed=false", params["q"])
+        self.assertIn("application/vnd.google-apps.folder", params["q"])
+
+    @patch("scripts.lib.workspace_client._workspace_get")
+    def test_walk_drive_handles_empty_response(self, mock_get):
+        from scripts.lib.workspace_client import _walk_drive_for_clients
+        mock_get.return_value = {"files": []}
+        result = _walk_drive_for_clients("test_token")
+        self.assertEqual(result, {"files": []})
+
+
+class TestWorkspaceClientEndpointAllowlist(unittest.TestCase):
+    """Trust-boundary verification (D-X1): workspace_client.py only references
+    allowlisted Google API endpoints. CI catches accidental write paths
+    (permissions.update, share_drive_file, etc.) before ship.
+
+    Strategy: load the module's allowlist, walk every string literal in the
+    source file, ensure every string starting with 'calendar/' or 'drive/' is
+    in the allowlist (or its prefix set).
+    """
+
+    def test_only_allowlisted_endpoints_referenced(self):
+        import re
+        from scripts.lib import workspace_client
+        from scripts.lib.workspace_client import (
+            WORKSPACE_ALLOWED_ENDPOINTS, WORKSPACE_ALLOWED_ENDPOINT_PREFIXES,
+        )
+        source = Path(workspace_client.__file__).read_text(encoding="utf-8")
+        endpoint_pattern = re.compile(
+            r'["\']((?:calendar|drive)/v3/[^"\']+)["\']'
+        )
+        found = set(endpoint_pattern.findall(source))
+        for path in found:
+            allowed = path in WORKSPACE_ALLOWED_ENDPOINTS or any(
+                path.startswith(p) for p in WORKSPACE_ALLOWED_ENDPOINT_PREFIXES
+            )
+            self.assertTrue(
+                allowed,
+                f"endpoint {path!r} found in workspace_client.py but not in "
+                f"WORKSPACE_ALLOWED_ENDPOINTS — add it explicitly or remove the call",
+            )
+
+    def test_no_write_verb_method_calls_present(self):
+        """Defensive: scan for any HTTP verb that isn't GET. workspace_client
+        is read-only by construction.
+
+        Carve-out: the OAuth POST in `_refresh_workspace_token` to
+        oauth2.googleapis.com/token is the SOLE write call. The line is marked
+        with `# OAUTH-POST:` to make it greppable; this test skips that line.
+        """
+        from scripts.lib import workspace_client
+        source = Path(workspace_client.__file__).read_text(encoding="utf-8")
+        for verb in ("POST", "PUT", "PATCH", "DELETE"):
+            for i, line in enumerate(source.splitlines(), 1):
+                stripped = line.strip()
+                if stripped.startswith("#") or stripped.startswith('"""') or stripped.startswith("'''"):
+                    continue
+                if "OAUTH-POST:" in line:
+                    continue  # documented carve-out
+                self.assertNotIn(
+                    f'method="{verb}"', line,
+                    f"workspace_client.py:{i}: found method={verb!r} on line "
+                    f"{line.strip()!r} — this module is read-only by construction; "
+                    f"add an OAUTH-POST: comment marker if this is a documented carve-out",
+                )
 
 
 if __name__ == "__main__":
