@@ -1474,9 +1474,26 @@ class TestHasWordBoundaryMatch(unittest.TestCase):
         self.assertFalse(_has_word_boundary_match("", "pca"))
 
     def test_regex_metacharacters_escaped(self):
-        """Defensive: alias '.+' (regex metachar) is escaped — matches the literal."""
+        """Defensive: alias '.+' (regex metachar) is escaped — matches the literal.
+
+        Haystack uses spaces around the `.+` token so the literal `.+` sits at a
+        word boundary (D-A4-REVISED rule 3). Without `re.escape`, raw regex `.+`
+        would also match a needle of length 0 — the negative half of this check
+        is `test_unescaped_regex_would_otherwise_match` below.
+        """
         from scripts.lib.vault_writer import _has_word_boundary_match
-        self.assertTrue(_has_word_boundary_match("report.+.docx", ".+"))
+        self.assertTrue(_has_word_boundary_match("report .+ stuff", ".+"))
+
+    def test_unescaped_regex_would_not_match_literal_token(self):
+        """Defensive complement: literal `.+` token must NOT be findable in
+        a haystack that doesn't actually contain the literal sequence — this
+        proves we're not interpreting `.+` as raw regex 'any one or more chars'
+        (which would always match any non-empty haystack at a boundary)."""
+        from scripts.lib.vault_writer import _has_word_boundary_match
+        # If the regex used raw needle (no re.escape), `.+` would match ANY one+
+        # char between delimiters → 'no .literal here' would erroneously match.
+        # With re.escape, we only match the LITERAL '.+' token, which isn't here.
+        self.assertFalse(_has_word_boundary_match("no literal here", ".+"))
 
     def test_no_partial_word_match(self):
         """D-A4-REVISED rule 3: 'pca' must NOT match 'spca-foo' (no boundary at start)."""

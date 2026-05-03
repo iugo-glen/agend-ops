@@ -66,6 +66,14 @@ _DASH_RUN_RE = re.compile(r"-{2,}")
 # Pattern 8 / D-06a uses these to annotate the _Unknown.md groups for cleanup.
 _PRIORITY_BUCKET_NAMES = frozenset({"urgent", "needs-response", "informational", "low-priority"})
 
+# Phase 12 D-A4-REVISED: Drive filename matching stop-list.
+# Tokens that match Glen's brand/personal references rather than client names —
+# silently ignored when they're the ONLY filename match (one info-level feed
+# entry per sync summarises the count; emission lives in _fetch_external_data_for_run
+# in Plan 12-04). Stop-list applies AFTER alias matching: if a real client alias
+# AND a stop-list token both match, the client alias wins.
+_DRIVE_FILENAME_STOP_LIST = frozenset({"agend", "iugo", "glen", "rosie"})
+
 
 # Errors ------------------------------------------------------------------
 
@@ -557,6 +565,99 @@ def _clientid_to_slug(cm_client_id, clients: dict) -> str:
         if info.get("cm_client_id") == cm_client_id:
             return info["slug"]
     return "_Unknown"
+
+
+# Phase 12 routing helpers (D-A2 + D-A4-REVISED) ---------------------------
+
+def _has_word_boundary_match(haystack: str, needle: str) -> bool:
+    """Return True iff `needle` appears in `haystack` at a word boundary.
+
+    D-A4-REVISED rule 3: word boundary = string start/end OR one of the
+    delimiters `_`, `-`, `.`, ` `. Prevents `STAV` from matching `staffing.docx`.
+
+    Both `haystack` and `needle` MUST be lowercased by the caller (single source
+    of truth for case folding). `re.escape(needle)` ensures regex metacharacters
+    in user-provided aliases (defensive — aliases come from clients.jsonl which
+    is git-tracked but Glen-edited) cannot break the regex compilation.
+    """
+    if not needle or not haystack:
+        return False
+    pattern = rf"(?:^|[_\-. ]){re.escape(needle)}(?:[_\-. ]|$)"
+    return re.search(pattern, haystack) is not None
+
+
+def _match_drive_filename_to_client(filename: str,
+                                     clients: dict[str, dict]) -> str | None:
+    """Match a Drive filename to a client domain by alias substring + word boundary.
+
+    D-A4-REVISED rules:
+      1. Case-insensitive substring match against `client_domain` (without TLD)
+         OR any entry in `aliases[]`.
+      2. Word-boundary discipline (delegated to _has_word_boundary_match).
+      3. Longest alias wins (mirrors _clientid_to_slug's longest-match logic).
+      4. Multi-client tie → first alias alphabetically (mirrors D-A2's first-
+         match-wins; deterministic across runs).
+
+    Returns the matched client_domain (key into `clients` dict), or None for
+    no-match. The caller is responsible for distinguishing stop-list-only
+    matches via a separate stop-list check (the matcher is pure routing logic).
+    """
+    name_lower = filename.lower()
+    candidates: list[tuple[str, str]] = []
+    for domain, info in clients.items():
+        # Domain stem without TLD: 'propertycouncil.com.au' -> 'propertycouncil'
+        stem = domain.split(".")[0].lower()
+        if stem:
+            candidates.append((stem, domain))
+        for alias in (info.get("aliases") or []):
+            if alias:
+                candidates.append((alias.lower(), domain))
+
+    matches: list[tuple[str, str]] = []
+    for needle, domain in candidates:
+        if _has_word_boundary_match(name_lower, needle):
+            matches.append((needle, domain))
+
+    if not matches:
+        return None
+
+    # Longest needle wins; alphabetical tie-break on (needle, domain).
+    matches.sort(key=lambda m: (-len(m[0]), m[0], m[1]))
+    return matches[0][1]
+
+
+def _route_calendar_event_to_slug(event: dict, clients: dict[str, dict]) -> str:
+    """D-A2: route a calendar event to a client slug via attendee email domain.
+
+    Match rule: at least one attendee's email host equals a `client_domain` OR
+    appears (case-insensitive equality, NOT substring) in that client's
+    `aliases[]`. Multi-client matches resolve to the first match in alphabetical
+    client_domain order (D-A2 first-match-wins).
+
+    Returns the client slug, or '_Unknown' on no match (D-04 routing rule).
+    """
+    attendees = event.get("attendees") or []
+    matched_domains: set[str] = set()
+    for attendee in attendees:
+        email = (attendee.get("email") or "").lower()
+        if "@" not in email:
+            continue
+        host = email.split("@", 1)[1]
+        if host in clients:
+            matched_domains.add(host)
+            continue
+        # Alias match: scan all clients for an alias-equality match (NOT substring;
+        # aliases here are e.g. 'pca' as a sibling-domain shorthand, not a partial-
+        # filename token; substring is a Drive-only concept per D-A4-REVISED).
+        for domain, info in clients.items():
+            aliases_lower = {a.lower() for a in (info.get("aliases") or [])}
+            if host in aliases_lower:
+                matched_domains.add(domain)
+                break
+    if not matched_domains:
+        return "_Unknown"
+    chosen = sorted(matched_domains)[0]
+    return clients[chosen]["slug"]
 
 
 def _cm_contract_event_tuple(contract: dict, local_tz_offset: str = "+10:30") -> tuple:
@@ -1820,6 +1921,11 @@ __all__ = [
     "_normalize_invoice_number", "_clientid_to_slug",
     "_cm_contract_event_tuple", "_cm_invoice_event_tuple",
     "_fetch_cm_data_for_run",
+    # Phase 12 helpers (intentionally exported for testability per existing
+    # MarkerError / Phase 11 cm helpers pattern).
+    "_match_drive_filename_to_client", "_has_word_boundary_match",
+    "_route_calendar_event_to_slug",
+    "_DRIVE_FILENAME_STOP_LIST",
     "main",
 ]
 
