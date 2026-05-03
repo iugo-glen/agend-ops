@@ -218,19 +218,22 @@ class TestBackfillIdempotent(unittest.TestCase):
             self.assertEqual(first, second)
 
     def _snapshot_managed(self, build_root: Path) -> dict:
-        """Read each .md and strip last_synced + cm_data_stale_since lines for comparison.
+        """Read each .md and strip last_synced + stale-since lines for comparison.
 
         Phase 11 extension: also strip cm_data_stale_since since it is a
         cache-fallback signal that changes between runs depending on cache
-        state (D-A3). The idempotency contract is "managed-section content
-        is byte-identical modulo per-run trust signals".
+        state (D-A3). Phase 12 extension: also strip workspace_data_stale_since
+        for the same reason (Calendar/Drive cache-fallback signal). The
+        idempotency contract is "managed-section content is byte-identical
+        modulo per-run trust signals".
         """
         out = {}
         for md in sorted((build_root / "Clients").glob("*.md")):
             lines = md.read_text(encoding="utf-8").splitlines()
             filtered = [ln for ln in lines
                         if not ln.startswith("last_synced:")
-                        and not ln.startswith("cm_data_stale_since:")]
+                        and not ln.startswith("cm_data_stale_since:")
+                        and not ln.startswith("workspace_data_stale_since:")]
             out[md.name] = "\n".join(filtered)
         return out
 
@@ -1145,7 +1148,8 @@ class TestBackfillIdempotentPhase11(unittest.TestCase):
             lines = md.read_text(encoding="utf-8").splitlines()
             filtered = [ln for ln in lines
                         if not ln.startswith("last_synced:")
-                        and not ln.startswith("cm_data_stale_since:")]
+                        and not ln.startswith("cm_data_stale_since:")
+                        and not ln.startswith("workspace_data_stale_since:")]
             out[md.name] = "\n".join(filtered)
         return out
 
@@ -2092,6 +2096,415 @@ class TestGatherEventsDriveIntegration(unittest.TestCase):
             ev_p12_explicit, _ = _gather_events(data_root, clients,
                                                 cal_events=None, drive_files=None)
             self.assertEqual(ev_p11_style, ev_p12_explicit)
+
+
+class TestStopListSilentSkipCounter(unittest.TestCase):
+    """Phase 12 D-A4-REVISED: stop-list-only filename matches counted in feed."""
+
+    def _setup(self, d: Path) -> Path:
+        config = d / "config"
+        config.mkdir()
+        (d / "triage").mkdir()
+        (d / "tasks").mkdir()
+        (d / "invoices").mkdir()
+        (d / "todos").mkdir()
+        (config / "clients.jsonl").write_text(
+            json.dumps({"domain": "propertycouncil.com.au", "name": "PCA",
+                        "aliases": ["PCA"], "cm_client_id": 1}) + "\n",
+            encoding="utf-8",
+        )
+        (d / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+        (d / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+        return d
+
+    def test_orchestrator_counts_stop_list_skips(self):
+        """5 files, 2 stop-list-only → ONE info-level feed entry with count=2."""
+        import unittest.mock as mock
+        from scripts.lib.vault_writer import _fetch_external_data_for_run, load_clients
+        from datetime import datetime, timezone, timedelta
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            feed = data_root / "feed.jsonl"
+            feed.touch()
+            # Pre-populate creds + drive cache so the orchestrator runs without
+            # hitting the OAuth path (we mock the walker output below).
+            creds_dir = Path(d) / "creds"
+            creds_dir.mkdir()
+            far_future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            (creds_dir / "glen@iugo.com.au.json").write_text(json.dumps({
+                "token": "tok", "refresh_token": "rt", "client_id": "c",
+                "client_secret": "s", "expiry": far_future,
+            }), encoding="utf-8")
+            clients = load_clients(data_root)
+
+            with mock.patch.dict(os.environ, {
+                    "CONTRACT_MANAGER_API_KEY": "",  # CM skipped (Phase 11 graceful)
+                    "GOOGLE_MCP_CREDENTIALS_DIR": str(creds_dir),
+                    "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au",
+                 }), \
+                 mock.patch("scripts.lib.workspace_client._walk_drive_for_clients") as wd, \
+                 mock.patch("scripts.lib.workspace_client.call_with_retry") as cw:
+                # Calendar returns empty (no events to process)
+                cw.return_value = {"items": []}
+                # Drive walker returns 5 files: 2 stop-list-only, 1 PCA match,
+                # 2 no-match (no client AND no stop-list)
+                wd.return_value = {"files": [
+                    {"id": "f1", "name": "PCA-Proposal.docx",
+                     "modified_time": "2026-05-01T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                    {"id": "f2", "name": "iugo-personal-notes.docx",
+                     "modified_time": "2026-05-02T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                    {"id": "f3", "name": "Glen-private.txt",
+                     "modified_time": "2026-05-03T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                    {"id": "f4", "name": "totally-unrelated-file.docx",
+                     "modified_time": "2026-05-04T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                    {"id": "f5", "name": "another-random.docx",
+                     "modified_time": "2026-05-05T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                ]}
+                result = _fetch_external_data_for_run(data_root, clients, feed)
+            # Stop-list count: f2 (iugo) + f3 (glen) = 2
+            self.assertEqual(result["drive_stop_list_skipped"], 2)
+            feed_text = feed.read_text(encoding="utf-8")
+            # ONE info-level entry mentioning the count
+            self.assertIn('"level": "info"', feed_text)
+            self.assertIn("stop-list-only", feed_text)
+            self.assertIn("2", feed_text)
+
+    def test_orchestrator_no_stop_list_entry_when_zero_skips(self):
+        """All files match a real client → NO 'stop-list' info entry."""
+        import unittest.mock as mock
+        from scripts.lib.vault_writer import _fetch_external_data_for_run, load_clients
+        from datetime import datetime, timezone, timedelta
+        with tempfile.TemporaryDirectory() as d:
+            data_root = Path(self._setup(Path(d)))
+            feed = data_root / "feed.jsonl"
+            feed.touch()
+            creds_dir = Path(d) / "creds"
+            creds_dir.mkdir()
+            far_future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            (creds_dir / "glen@iugo.com.au.json").write_text(json.dumps({
+                "token": "tok", "refresh_token": "rt", "client_id": "c",
+                "client_secret": "s", "expiry": far_future,
+            }), encoding="utf-8")
+            clients = load_clients(data_root)
+
+            with mock.patch.dict(os.environ, {
+                    "CONTRACT_MANAGER_API_KEY": "",
+                    "GOOGLE_MCP_CREDENTIALS_DIR": str(creds_dir),
+                    "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au",
+                 }), \
+                 mock.patch("scripts.lib.workspace_client._walk_drive_for_clients") as wd, \
+                 mock.patch("scripts.lib.workspace_client.call_with_retry") as cw:
+                cw.return_value = {"items": []}
+                wd.return_value = {"files": [
+                    {"id": "f1", "name": "PCA-Proposal.docx",
+                     "modified_time": "2026-05-01T10:00:00Z",
+                     "web_view_link": "x", "last_modifying_user": {}, "parents": []},
+                ]}
+                result = _fetch_external_data_for_run(data_root, clients, feed)
+            self.assertEqual(result["drive_stop_list_skipped"], 0)
+            feed_text = feed.read_text(encoding="utf-8")
+            self.assertNotIn("stop-list-only", feed_text)
+
+
+class TestWorkspaceCacheFallbackEnd2End(unittest.TestCase):
+    """Phase 12 D-A3 mirror: live Workspace failure → cache fallback →
+    workspace_data_stale_since stamp + warning feed entry."""
+
+    def _setup(self, d: Path) -> tuple[Path, Path]:
+        config = d / "config"
+        config.mkdir()
+        (d / "triage").mkdir()
+        (d / "tasks").mkdir()
+        (d / "invoices").mkdir()
+        (d / "todos").mkdir()
+        (config / "clients.jsonl").write_text(
+            json.dumps({"domain": "ex.com", "name": "Ex",
+                        "aliases": ["EX"], "cm_client_id": 42}) + "\n",
+            encoding="utf-8",
+        )
+        (d / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+        (d / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+        return d, d / ".cal-cache.json"
+
+    def _write_creds(self, creds_dir: Path) -> None:
+        from datetime import datetime, timezone, timedelta
+        creds_dir.mkdir()
+        far_future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        (creds_dir / "glen@iugo.com.au.json").write_text(json.dumps({
+            "token": "tok", "refresh_token": "rt", "client_id": "c",
+            "client_secret": "s", "expiry": far_future,
+        }), encoding="utf-8")
+
+    def test_calendar_cache_fallback_stamps_workspace_stale_since(self):
+        import unittest.mock as mock
+        from scripts.lib.workspace_client import WorkspaceTransportError
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root, cal_cache_path = self._setup(Path(d))
+            creds_dir = Path(d) / "creds"
+            self._write_creds(creds_dir)
+            # Pre-populate cal cache with a known fetched_at
+            stale_ts = "2026-04-01T10:00:00+10:30"
+            cal_cache = {
+                "schema_version": 1,
+                "global": {
+                    "calendar_events": {
+                        "fetched_at": stale_ts,
+                        "result": {"items": [
+                            {"id": "evt-cached", "summary": "Cached meeting",
+                             "start_dt": "2026-05-15T10:00:00+10:30",
+                             "attendees": [{"email": "alice@ex.com"}],
+                             "html_link": "https://cal.google.com/cached",
+                             "visibility": "default"},
+                        ]},
+                    },
+                },
+                "by_client": {},
+            }
+            cal_cache_path.write_text(json.dumps(cal_cache, indent=2), encoding="utf-8")
+            # Drive cache empty (no fallback for Drive — also empty live response).
+            (data_root / ".drive-cache.json").write_text(json.dumps({
+                "schema_version": 1, "global": {}, "by_client": {},
+            }), encoding="utf-8")
+            feed_path = data_root / "feed.jsonl"
+            feed_path.touch()
+
+            def _ws_call(api_path, params, token):
+                if "calendar" in api_path:
+                    raise WorkspaceTransportError("network down")
+                return {"files": []}  # Drive succeeds (this branch unused; walker mocked separately)
+
+            with mock.patch.dict(os.environ, {
+                    "CONTRACT_MANAGER_API_KEY": "",  # CM skipped (graceful)
+                    "GOOGLE_MCP_CREDENTIALS_DIR": str(creds_dir),
+                    "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au",
+                 }), \
+                 mock.patch("scripts.lib.workspace_client.call_with_retry",
+                            side_effect=_ws_call), \
+                 mock.patch("scripts.lib.workspace_client._walk_drive_for_clients",
+                            return_value={"files": []}):
+                from scripts.lib.vault_writer import run_backfill
+                stats = run_backfill(data_root, Path(build), feed_path=feed_path)
+            self.assertGreaterEqual(stats["clients_written"], 1)
+
+            # Note frontmatter has workspace_data_stale_since
+            ex_md = next(p for p in (Path(build) / "Clients").glob("*.md")
+                         if "_Unknown" not in p.name)
+            ex_text = ex_md.read_text(encoding="utf-8")
+            self.assertIn("workspace_data_stale_since", ex_text)
+            self.assertIn(stale_ts, ex_text)
+            # Warning feed entry written
+            feed = feed_path.read_text(encoding="utf-8")
+            self.assertIn('"level": "warning"', feed)
+            self.assertIn("calendar.events", feed)
+
+    def test_drive_cache_fallback_stamps_workspace_stale_since(self):
+        import unittest.mock as mock
+        from scripts.lib.workspace_client import WorkspaceTransportError
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root, _ = self._setup(Path(d))
+            creds_dir = Path(d) / "creds"
+            self._write_creds(creds_dir)
+            # Pre-populate drive cache
+            stale_ts = "2026-04-01T11:00:00+10:30"
+            drive_cache = {
+                "schema_version": 1,
+                "global": {
+                    "drive_files": {
+                        "fetched_at": stale_ts,
+                        "result": {"files": [
+                            {"id": "f-cached", "name": "EX-doc.docx",
+                             "mime_type": "application/x",
+                             "modified_time": "2026-05-01T10:00:00Z",
+                             "web_view_link": "https://docs.google.com/cached",
+                             "last_modifying_user": {"displayName": "Glen"},
+                             "parents": []},
+                        ]},
+                    },
+                },
+                "by_client": {},
+            }
+            (data_root / ".drive-cache.json").write_text(
+                json.dumps(drive_cache, indent=2), encoding="utf-8",
+            )
+            (data_root / ".cal-cache.json").write_text(json.dumps({
+                "schema_version": 1, "global": {}, "by_client": {},
+            }), encoding="utf-8")
+            feed_path = data_root / "feed.jsonl"
+            feed_path.touch()
+
+            with mock.patch.dict(os.environ, {
+                    "CONTRACT_MANAGER_API_KEY": "",
+                    "GOOGLE_MCP_CREDENTIALS_DIR": str(creds_dir),
+                    "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au",
+                 }), \
+                 mock.patch("scripts.lib.workspace_client.call_with_retry",
+                            return_value={"items": []}), \
+                 mock.patch("scripts.lib.workspace_client._walk_drive_for_clients",
+                            side_effect=WorkspaceTransportError("Drive down")):
+                from scripts.lib.vault_writer import run_backfill
+                run_backfill(data_root, Path(build), feed_path=feed_path)
+
+            ex_md = next(p for p in (Path(build) / "Clients").glob("*.md")
+                         if "_Unknown" not in p.name)
+            ex_text = ex_md.read_text(encoding="utf-8")
+            self.assertIn("workspace_data_stale_since", ex_text)
+            self.assertIn(stale_ts, ex_text)
+            feed = feed_path.read_text(encoding="utf-8")
+            self.assertIn('"level": "warning"', feed)
+            self.assertIn("drive.files", feed)
+
+    def test_workspace_cache_clears_stale_since_on_success(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root, _ = self._setup(Path(d))
+            creds_dir = Path(d) / "creds"
+            self._write_creds(creds_dir)
+            feed_path = data_root / "feed.jsonl"
+            feed_path.touch()
+
+            with mock.patch.dict(os.environ, {
+                    "CONTRACT_MANAGER_API_KEY": "",
+                    "GOOGLE_MCP_CREDENTIALS_DIR": str(creds_dir),
+                    "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au",
+                 }), \
+                 mock.patch("scripts.lib.workspace_client.call_with_retry",
+                            return_value={"items": []}), \
+                 mock.patch("scripts.lib.workspace_client._walk_drive_for_clients",
+                            return_value={"files": []}):
+                from scripts.lib.vault_writer import run_backfill
+                run_backfill(data_root, Path(build), feed_path=feed_path)
+
+            ex_md = next(p for p in (Path(build) / "Clients").glob("*.md")
+                         if "_Unknown" not in p.name)
+            ex_text = ex_md.read_text(encoding="utf-8")
+            self.assertNotIn("workspace_data_stale_since", ex_text)
+
+
+class TestBackfillIdempotentPhase12(unittest.TestCase):
+    """D-14/D-16 idempotency under Phase 12 — frozen Calendar+Drive responses
+    produce byte-identical managed sections (modulo last_synced + cm_data_stale_since
+    + workspace_data_stale_since).
+    """
+
+    def test_two_runs_byte_identical_with_workspace_data(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as build:
+            data_root = Path(d)
+            (data_root / "config").mkdir()
+            (data_root / "triage").mkdir()
+            (data_root / "tasks").mkdir()
+            (data_root / "invoices").mkdir()
+            (data_root / "todos").mkdir()
+            (data_root / "config" / "clients.jsonl").write_text(
+                json.dumps({"domain": "ex.com", "name": "Ex",
+                            "aliases": ["EX"], "cm_client_id": 42}) + "\n",
+                encoding="utf-8",
+            )
+            (data_root / "tasks" / "active.jsonl").write_text("", encoding="utf-8")
+            (data_root / "invoices" / "active.jsonl").write_text("", encoding="utf-8")
+            feed = data_root / "feed.jsonl"
+            feed.touch()
+            # Workspace creds
+            from datetime import datetime, timezone, timedelta
+            creds_dir = data_root / "creds"
+            creds_dir.mkdir()
+            far_future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            (creds_dir / "glen@iugo.com.au.json").write_text(json.dumps({
+                "token": "tok", "refresh_token": "rt", "client_id": "c",
+                "client_secret": "s", "expiry": far_future,
+            }), encoding="utf-8")
+
+            # Frozen Calendar response: ONE meeting routed to ex.com
+            frozen_cal = {"items": [
+                {"id": "evt-frozen", "summary": "Frozen meeting",
+                 "start_dt": "2026-05-15T10:00:00+10:30",
+                 "attendees": [{"email": "alice@ex.com"}],
+                 "html_link": "https://cal.google.com/frozen",
+                 "visibility": "default"},
+            ]}
+            # Frozen Drive response: ONE file matching ex.com (alias EX)
+            frozen_drive = {"files": [
+                {"id": "f-frozen", "name": "EX-Proposal.docx",
+                 "mime_type": "application/x",
+                 "modified_time": "2026-05-01T14:00:00Z",
+                 "web_view_link": "https://docs.google.com/d/frozen",
+                 "last_modifying_user": {"displayName": "Glen Rosie"},
+                 "parents": ["root"]},
+            ]}
+
+            with mock.patch.dict(os.environ, {
+                    "CONTRACT_MANAGER_API_KEY": "",  # CM skipped
+                    "GOOGLE_MCP_CREDENTIALS_DIR": str(creds_dir),
+                    "GOOGLE_PRIMARY_EMAIL": "glen@iugo.com.au",
+                 }), \
+                 mock.patch("scripts.lib.workspace_client.call_with_retry",
+                            return_value=frozen_cal), \
+                 mock.patch("scripts.lib.workspace_client.format_calendar_event_for_log",
+                            side_effect=lambda e, p: e), \
+                 mock.patch("scripts.lib.workspace_client._walk_drive_for_clients",
+                            return_value=frozen_drive):
+                from scripts.lib.vault_writer import run_backfill
+                run_backfill(data_root, Path(build), feed_path=feed)
+                snap1 = self._snapshot(Path(build))
+                run_backfill(data_root, Path(build), feed_path=feed)
+                snap2 = self._snapshot(Path(build))
+            self.assertEqual(snap1, snap2)
+
+    def _snapshot(self, build_root: Path) -> dict:
+        out = {}
+        for md in sorted((build_root / "Clients").glob("*.md")):
+            lines = md.read_text(encoding="utf-8").splitlines()
+            filtered = [ln for ln in lines
+                        if not ln.startswith("last_synced:")
+                        and not ln.startswith("cm_data_stale_since:")
+                        and not ln.startswith("workspace_data_stale_since:")]
+            out[md.name] = "\n".join(filtered)
+        return out
+
+
+class TestProjectionDoesNotImportWorkspace(unittest.TestCase):
+    """Pitfall 1 inheritance (T-12-04-01): Mac daemon's run_projection MUST NOT
+    pull workspace_client into sys.modules. Subprocess-based for the same reason
+    as TestProjectionDoesNotImportCm — in-process tests would see workspace_client
+    from earlier test classes that DO import it.
+    """
+
+    def test_projection_does_not_import_workspace_client(self):
+        with tempfile.TemporaryDirectory() as build, tempfile.TemporaryDirectory() as icloud:
+            (Path(build) / "Clients").mkdir()
+            code = (
+                "import sys; "
+                "from scripts.lib.vault_writer import run_projection; "
+                f"run_projection(__import__('pathlib').Path({build!r}), "
+                f"__import__('pathlib').Path({icloud!r}), dry_run=True); "
+                "print('WS_LOADED' if 'scripts.lib.workspace_client' in sys.modules "
+                "else 'WS_NOT_LOADED'); "
+                "print('CM_LOADED' if 'scripts.lib.cm_client' in sys.modules "
+                "else 'CM_NOT_LOADED')"
+            )
+            result = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True, text=True, cwd=os.getcwd(),
+            )
+            self.assertEqual(result.returncode, 0,
+                             f"subprocess failed: {result.stderr}")
+            # Phase 12 invariant
+            self.assertIn("WS_NOT_LOADED", result.stdout)
+            # Phase 11 inheritance — the same subprocess proves the original Pitfall 1
+            self.assertIn("CM_NOT_LOADED", result.stdout)
 
 
 if __name__ == "__main__":
