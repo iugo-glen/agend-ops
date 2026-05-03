@@ -180,3 +180,135 @@ def call_with_retry(api_path: str, params: dict, access_token: str) -> dict:
             last_err = e
     assert last_err is not None
     raise last_err
+
+
+# Cache I/O --------------------------------------------------------------------
+
+def _empty_cache() -> dict:
+    return {"schema_version": CACHE_SCHEMA_VERSION, "global": {}, "by_client": {}}
+
+
+def load_cache(cache_path: Path) -> dict:
+    """Return cache dict or a fresh skeleton on missing/corrupt cache.
+
+    Mirrors cm_client.load_cache exactly — fallback-only, never raises.
+    """
+    if not cache_path.exists():
+        return _empty_cache()
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict) or data.get("schema_version") != CACHE_SCHEMA_VERSION:
+            return _empty_cache()
+        # Defensive: ensure required sub-keys exist (mirrors cm_client.load_cache)
+        data.setdefault("global", {})
+        data.setdefault("by_client", {})
+        return data
+    except (OSError, json.JSONDecodeError):
+        return _empty_cache()
+
+
+def write_cache(cache_path: Path, cache: dict) -> None:
+    """Atomic whole-file write of the cache (temp+rename via vault_writer._atomic_write).
+
+    Mirrors cm_client.write_cache exactly. The trailing newline matches the
+    convention used by other JSON artifacts in the repo (feed.jsonl, etc.).
+    """
+    content = json.dumps(cache, indent=2, sort_keys=True) + "\n"
+    _atomic_write(cache_path, content)
+
+
+def gc_cache_orphans(cache: dict, known_domains: set) -> dict:
+    """Drop `by_client` entries whose domain is not in `known_domains`.
+
+    Mirrors cm_client.gc_cache_orphans. Mutates `cache` in place AND returns it
+    (caller pattern: `cache = gc_cache_orphans(cache, known)`). For Phase 12,
+    Calendar + Drive both use global-only caches (no `by_client` entries), but
+    keeping the helper present means future per-client expansions follow the
+    same shape.
+    """
+    by_client = cache.get("by_client", {})
+    orphans = [d for d in by_client.keys() if d not in known_domains]
+    for d in orphans:
+        del by_client[d]
+    return cache
+
+
+# Privacy filter helpers -------------------------------------------------------
+
+def _is_internal(email: str, primary_email: str) -> bool:
+    """D-D1 part 2: classify an attendee email as internal vs external.
+
+    Internal = empty/malformed email (defensive default), or matches primary_email,
+    or has an @host in GLEN_INTERNAL_DOMAINS. External otherwise.
+    """
+    if not email:
+        return True  # defensive: missing email treated as internal
+    email = email.lower()
+    if email == primary_email.lower():
+        return True
+    if "@" not in email:
+        return True  # defensive: malformed email treated as internal
+    host = email.split("@", 1)[1]
+    return host in GLEN_INTERNAL_DOMAINS
+
+
+# Calendar adapter — applies D-D1 + D-D2 ---------------------------------------
+
+def format_calendar_event_for_log(event: dict, primary_email: str) -> dict | None:
+    """Apply D-D1 (visibility OR no-external-attendees) + D-D2 (>25 attendees).
+
+    Returns: adapted dict on PASS, None on filter MATCH.
+
+    The adapter shape feeds Wave 2's `_cal_meeting_event_tuple` (vault_writer.py
+    extension). Pitfall 4 inheritance: `id` is the stable dedup key; tests
+    enforce the field is preserved.
+    """
+    attendees = event.get("attendees") or []
+
+    # D-D2: mass-attendee filter (cheapest check first)
+    if len(attendees) > 25:
+        return None
+
+    # D-D1 part 1: explicit visibility=private
+    if event.get("visibility") == "private":
+        return None
+
+    # D-D1 part 2: no external attendees → personal/internal-only event
+    if not any(not _is_internal(a.get("email", ""), primary_email) for a in attendees):
+        return None
+
+    start = event.get("start") or {}
+    return {
+        "id": event["id"],
+        "summary": event.get("summary") or "(no title)",
+        "start_dt": start.get("dateTime") or start.get("date") or "",
+        "attendees": attendees,
+        "html_link": event.get("htmlLink", ""),
+        "visibility": event.get("visibility", ""),
+    }
+
+
+# Drive adapter — applies D-D3 -------------------------------------------------
+
+def format_drive_file_for_log(file: dict) -> dict | None:
+    """Apply D-D3 (trashed OR .gdraft OR [DRAFT] token).
+
+    Returns: adapted dict on PASS, None on filter MATCH.
+    """
+    if file.get("trashed") is True:
+        return None
+    name = file.get("name") or ""
+    if name.endswith(".gdraft"):
+        return None
+    if "[DRAFT]" in name:  # case-sensitive per CONTEXT.md D-D3
+        return None
+    return {
+        "id": file["id"],
+        "name": name,
+        "mime_type": file.get("mimeType", ""),
+        "modified_time": file.get("modifiedTime", ""),
+        "web_view_link": file.get("webViewLink", ""),
+        "last_modifying_user": file.get("lastModifyingUser") or {},
+        "parents": file.get("parents") or [],
+    }
