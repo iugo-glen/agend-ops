@@ -924,8 +924,9 @@ def render_activity_log(events: list) -> str:
 
 def render_frontmatter(client: dict, last_synced_iso: str,
                        cm_extra: dict | None = None,
-                       cm_stale_since: str | None = None) -> str:
-    """ruamel.yaml round-tripped frontmatter (D-09 v1 + Phase 11 CM extras).
+                       cm_stale_since: str | None = None,
+                       workspace_stale_since: str | None = None) -> str:
+    """ruamel.yaml round-tripped frontmatter (D-09 v1 + Phase 11 CM extras + Phase 12 workspace stale).
 
     Phase 10 keys (UNCHANGED order): domain, client_name, status, last_synced.
     Phase 11 additive keys (only when cm_extra is not None): contract_start, contract_end,
@@ -934,6 +935,10 @@ def render_frontmatter(client: dict, last_synced_iso: str,
         rendered; the frontmatter key remains for future-compat with DataView).
     cm_data_stale_since (only when cm_stale_since is not None): stamped during cache
         fallback per D-A3 + D-A3-REVISED.
+    Phase 12 workspace_data_stale_since (only when workspace_stale_since is not None):
+        stamped during Calendar OR Drive cache fallback per D-A3 inheritance. Cleared
+        on next successful Workspace fetch. Placed AFTER cm_data_stale_since when both
+        present (insertion-order render via ruamel.yaml).
     """
     fm = {
         "domain": client["domain"],
@@ -950,6 +955,8 @@ def render_frontmatter(client: dict, last_synced_iso: str,
         fm["sites"]            = cm_extra.get("sites", [])
     if cm_stale_since:
         fm["cm_data_stale_since"] = cm_stale_since
+    if workspace_stale_since:
+        fm["workspace_data_stale_since"] = workspace_stale_since
     buf = StringIO()
     _yaml_instance().dump(fm, buf)
     return f"---\n{buf.getvalue()}---\n"
@@ -1217,7 +1224,8 @@ def run_backfill(data_root: Path, build_root: Path, dry_run: bool = False,
     Returns: `{"clients_written": int, "events_routed": int}`.
 
     Idempotent (D-14, D-16): two consecutive runs produce byte-identical managed sections
-    excluding the `last_synced` AND `cm_data_stale_since` frontmatter lines.
+    excluding the `last_synced`, `cm_data_stale_since`, AND `workspace_data_stale_since`
+    frontmatter lines (Phase 12 extends Phase 11's stale-since strip).
     """
     last_synced = now_iso_with_offset()
     if feed_path is None:
@@ -1236,13 +1244,15 @@ def run_backfill(data_root: Path, build_root: Path, dry_run: bool = False,
     todos = list(stream_ndjson(data_root / "todos" / "active.jsonl"))
     tasks = list(stream_ndjson(data_root / "tasks" / "active.jsonl"))
 
-    # Phase 11: fetch CM data once per run (with cache fallback per D-A3)
-    cm_data = _fetch_cm_data_for_run(data_root, clients, feed_path)
+    # Phase 12: orchestrator fetches CM + Calendar + Drive in one pass (with cache fallback).
+    external_data = _fetch_external_data_for_run(data_root, clients, feed_path)
 
     events_by_slug, unknown_pairs = _gather_events(
         data_root, clients,
-        cm_expiring=cm_data["global_expiring"],
-        cm_invoices=cm_data["global_invoices"],
+        cm_expiring=external_data["global_expiring"],
+        cm_invoices=external_data["global_invoices"],
+        cal_events=external_data.get("global_calendar"),
+        drive_files=external_data.get("global_drive"),
     )
 
     output_dir = build_root / "Clients"
@@ -1255,13 +1265,16 @@ def run_backfill(data_root: Path, build_root: Path, dry_run: bool = False,
         slug = client["slug"]
         events = events_by_slug.get(slug, [])
 
-        bucket = cm_data["by_domain"].get(domain, {})
+        bucket = external_data["by_domain"].get(domain, {})
         cm_extra = bucket.get("frontmatter_extra")
         sla_status = bucket.get("sla_status")
         stale_since = bucket.get("stale_since")
 
-        fm = render_frontmatter(client, last_synced,
-                                cm_extra=cm_extra, cm_stale_since=stale_since)
+        fm = render_frontmatter(
+            client, last_synced,
+            cm_extra=cm_extra, cm_stale_since=stale_since,
+            workspace_stale_since=external_data.get("workspace_stale_since"),
+        )
         cm_todos = render_cm_todos(cm_extra)
         oi = render_open_items(slug, todos, tasks, clients)
         usage = render_usage(sla_status, client.get("client_name", ""))
@@ -1401,69 +1414,63 @@ def run_map_cm_clients(data_root: Path, dry_run: bool = False,
 
 
 # =========================================================================
-# Phase 11: CM data fetch orchestration for run_backfill (D-A1 + D-A3)
+# Phase 11/12: external data fetch orchestration for run_backfill (D-A1 + D-A3)
 # =========================================================================
 
 
-def _fetch_cm_data_for_run(data_root: Path, clients: dict[str, dict],
-                           feed_path: Path) -> dict:
-    """Build the per-run CM data structure consumed by run_backfill.
+def _fetch_external_data_for_run(data_root: Path, clients: dict[str, dict],
+                                  feed_path: Path) -> dict:
+    """Build the per-run external-data structure consumed by run_backfill.
+
+    Phase 12 extension of Phase 11's _fetch_cm_data_for_run: orchestrates CM
+    (Phase 11) + Calendar + Drive (Phase 12) external reads in sequence with
+    shared retry+cache+warning semantics. Per-tool failures are isolated; one
+    source down does not block the other two.
 
     Returns:
-        {
-            "global_expiring": dict | None,
-            "global_invoices": dict | None,
-            "by_domain": {
-                "<domain>": {
-                    "frontmatter_extra": dict | None,
-                    "sla_status": dict | None,
-                    "stale_since": str | None,
-                }
-            },
-        }
+        Phase 11 keys (UNCHANGED):
+            "global_expiring": dict | None
+            "global_invoices": dict | None
+            "by_domain": {"<domain>": {"frontmatter_extra", "sla_status", "stale_since"}}
+        Phase 12 keys (NEW):
+            "global_calendar": dict | None  (post-filter {"items": [...]} from
+                workspace_client.format_calendar_event_for_log)
+            "global_drive": dict | None     (post-filter {"files": [...]} from
+                workspace_client._walk_drive_for_clients)
+            "workspace_stale_since": str | None  (ISO ts of older cal/drive
+                cached fetched_at when EITHER fell back; None on full freshness)
+            "drive_stop_list_skipped": int  (count for one info-level feed
+                entry per sync; D-A4-REVISED summary)
 
-    Failure mode per D-A3:
-        - Live call → on exhaustion, fall back to data/.cm-cache.json
-        - Cache hit → stamp stale_since with cache.fetched_at
-        - Cache miss → frontmatter_extra=None, sla_status=None
-          (CM-TODOS shows "unavailable")
-        - Either failure path → append system/warning to feed_path
+    Failure modes:
+        - CM down → cache fallback per Phase 11 D-A3 (UNCHANGED)
+        - Calendar down → cache fallback + workspace_stale_since stamped
+        - Drive down → cache fallback + workspace_stale_since stamped
+        - Workspace credentials missing/expired → skip Calendar+Drive entirely;
+          warning feed entry; CM continues unaffected
+        - 401 mid-call → ONE token refresh + retry; on refresh failure → cache
+          fallback (treats refresh failure as "Workspace stale")
 
-    Skips CM entirely when CONTRACT_MANAGER_API_KEY env is unset OR when no client
-    has cm_client_id (graceful degrade for fresh installs, dev environments, tests).
-
-    D-G1 JIT fallback: when a client lacks cm_client_id (Glen added a new row to
+    D-G1 JIT fallback (Phase 11): when a client lacks cm_client_id (Glen added a new row to
     clients.jsonl after Phase 11 shipped), attempt one search_clients call for that
     domain and atomic-rewrite clients.jsonl with the result. Mirrors run_map_cm_clients
     (Plan 02) verbatim — same helper, same atomic write, same warning shape.
     """
-    api_key = os.environ.get("CONTRACT_MANAGER_API_KEY", "")
-    has_mapped_clients = any(c.get("cm_client_id") is not None for c in clients.values())
-    if not api_key or not has_mapped_clients:
-        return {
-            "global_expiring": None,
-            "global_invoices": None,
-            "by_domain": {d: {"frontmatter_extra": None, "sla_status": None,
-                              "stale_since": None}
-                          for d in clients.keys()},
-        }
-
-    # Lazy import keeps Mac daemon's run_projection from pulling cm_client into
-    # sys.modules (Pitfall 1 / T-11-04-01). Tested by TestProjectionDoesNotImportCm.
-    from .cm_client import (
-        call_with_retry, load_cache, write_cache, gc_cache_orphans,
-        cm_summary_to_frontmatter_extra, search_clients_for_domain,
-        CmTransportError, CmRpcError,
-    )
-
-    cache_path = data_root / ".cm-cache.json"
-    cache = load_cache(cache_path)
-    cache = gc_cache_orphans(cache, set(clients.keys()))
-    cache.setdefault("global", {})
-    cache.setdefault("by_client", {})
-
-    out = {"global_expiring": None, "global_invoices": None, "by_domain": {}}
-    now_ts = now_iso_with_offset()
+    # Initialize ALL output keys up front so both CM-skip and CM-active paths
+    # produce a complete structure for downstream consumers (Phase 12 keys must
+    # be present even when CM is gracefully skipped; Workspace block runs
+    # regardless of CM status).
+    out = {
+        "global_expiring": None,
+        "global_invoices": None,
+        "by_domain": {d: {"frontmatter_extra": None, "sla_status": None,
+                          "stale_since": None}
+                      for d in clients.keys()},
+        "global_calendar": None,
+        "global_drive": None,
+        "workspace_stale_since": None,
+        "drive_stop_list_skipped": 0,
+    }
 
     def _warn(summary: str, details: dict) -> None:
         append_feed_entry(
@@ -1478,123 +1485,328 @@ def _fetch_cm_data_for_run(data_root: Path, clients: dict[str, dict],
             feed_path=feed_path,
         )
 
-    # --- Global: list_contracts_expiring ---
-    try:
-        exp_result = call_with_retry("list_contracts_expiring", {"days": 90}, api_key)
-        cache["global"]["expiring_contracts"] = {
-            "fetched_at": now_ts, "lookahead_days": 90, "result": exp_result,
-        }
-        out["global_expiring"] = exp_result
-    except (CmTransportError, CmRpcError) as e:
-        _warn(f"CM stale (list_contracts_expiring): {type(e).__name__}",
-              {"tool": "list_contracts_expiring", "error": str(e)})
-        cached = cache.get("global", {}).get("expiring_contracts", {}).get("result")
-        out["global_expiring"] = cached  # may be None if no cache
+    # ============================================================
+    # Phase 11: Contract Manager fetch (UNCHANGED behaviour)
+    # ============================================================
+    api_key = os.environ.get("CONTRACT_MANAGER_API_KEY", "")
+    has_mapped_clients = any(c.get("cm_client_id") is not None for c in clients.values())
+    if api_key and has_mapped_clients:
+        # Lazy import keeps Mac daemon's run_projection from pulling cm_client into
+        # sys.modules (Pitfall 1 / T-11-04-01). Tested by TestProjectionDoesNotImportCm.
+        from .cm_client import (
+            call_with_retry, load_cache, write_cache, gc_cache_orphans,
+            cm_summary_to_frontmatter_extra, search_clients_for_domain,
+            CmTransportError, CmRpcError,
+        )
 
-    # --- Global: list_overdue_invoices ---
-    try:
-        inv_result = call_with_retry("list_overdue_invoices", {}, api_key)
-        cache["global"]["overdue_invoices"] = {"fetched_at": now_ts, "result": inv_result}
-        out["global_invoices"] = inv_result
-    except (CmTransportError, CmRpcError) as e:
-        _warn(f"CM stale (list_overdue_invoices): {type(e).__name__}",
-              {"tool": "list_overdue_invoices", "error": str(e)})
-        cached = cache.get("global", {}).get("overdue_invoices", {}).get("result")
-        out["global_invoices"] = cached
+        cache_path = data_root / ".cm-cache.json"
+        cache = load_cache(cache_path)
+        cache = gc_cache_orphans(cache, set(clients.keys()))
+        cache.setdefault("global", {})
+        cache.setdefault("by_client", {})
 
-    # --- Per-client: get_client_summary + get_sla_status ---
-    clients_path = data_root / "config" / "clients.jsonl"
+        now_ts = now_iso_with_offset()
 
-    for domain, info in clients.items():
-        cm_id = info.get("cm_client_id")
-        bucket = {"frontmatter_extra": None, "sla_status": None, "stale_since": None}
-        if cm_id is None:
-            # D-G1: just-in-time mapping for this one new domain.
+        # --- Global: list_contracts_expiring ---
+        try:
+            exp_result = call_with_retry("list_contracts_expiring", {"days": 90}, api_key)
+            cache["global"]["expiring_contracts"] = {
+                "fetched_at": now_ts, "lookahead_days": 90, "result": exp_result,
+            }
+            out["global_expiring"] = exp_result
+        except (CmTransportError, CmRpcError) as e:
+            _warn(f"CM stale (list_contracts_expiring): {type(e).__name__}",
+                  {"tool": "list_contracts_expiring", "error": str(e)})
+            cached = cache.get("global", {}).get("expiring_contracts", {}).get("result")
+            out["global_expiring"] = cached  # may be None if no cache
+
+        # --- Global: list_overdue_invoices ---
+        try:
+            inv_result = call_with_retry("list_overdue_invoices", {}, api_key)
+            cache["global"]["overdue_invoices"] = {"fetched_at": now_ts, "result": inv_result}
+            out["global_invoices"] = inv_result
+        except (CmTransportError, CmRpcError) as e:
+            _warn(f"CM stale (list_overdue_invoices): {type(e).__name__}",
+                  {"tool": "list_overdue_invoices", "error": str(e)})
+            cached = cache.get("global", {}).get("overdue_invoices", {}).get("result")
+            out["global_invoices"] = cached
+
+        # --- Per-client: get_client_summary + get_sla_status ---
+        clients_path = data_root / "config" / "clients.jsonl"
+
+        for domain, info in clients.items():
+            cm_id = info.get("cm_client_id")
+            bucket = {"frontmatter_extra": None, "sla_status": None, "stale_since": None}
+            if cm_id is None:
+                # D-G1: just-in-time mapping for this one new domain.
+                try:
+                    jit_id = search_clients_for_domain(domain, api_key)
+                except (CmTransportError, CmRpcError) as e:
+                    _warn(
+                        f"JIT mapping failed for {domain} — set cm_client_id manually "
+                        f"or re-run --mode map-cm-clients ({type(e).__name__})",
+                        {"domain": domain, "phase": "jit-search", "error": str(e)},
+                    )
+                    out["by_domain"][domain] = bucket
+                    continue
+                if jit_id is None:
+                    _warn(
+                        f"JIT mapping failed for {domain} — set cm_client_id manually "
+                        f"or re-run --mode map-cm-clients (no CM match)",
+                        {"domain": domain, "phase": "jit-search", "error": "no-match"},
+                    )
+                    out["by_domain"][domain] = bucket
+                    continue
+                # Persist the new id back to clients.jsonl (atomic, mirrors Plan 02 idiom).
+                jit_records: list[dict] = []
+                for rec in stream_ndjson(clients_path):
+                    if rec.get("domain") == domain and rec.get("cm_client_id") is None:
+                        rec["cm_client_id"] = int(jit_id)
+                    jit_records.append(rec)
+                jit_body = "\n".join(json.dumps(r, ensure_ascii=False) for r in jit_records) + "\n"
+                _atomic_write(clients_path, jit_body)
+                # Reflect the change in the in-memory `info` dict so downstream code sees it.
+                info["cm_client_id"] = int(jit_id)
+                cm_id = int(jit_id)
+                # Info-level feed entry: JIT-mapped {domain} → cm_client_id={N}
+                append_feed_entry(
+                    {
+                        "ts": now_iso_with_offset(),
+                        "type": "system",
+                        "summary": f"JIT-mapped {domain} -> cm_client_id={cm_id}",
+                        "level": "info",
+                        "trigger": "hook",
+                        "details": {"domain": domain, "cm_client_id": cm_id, "phase": "jit-search"},
+                    },
+                    feed_path=feed_path,
+                )
+
+            # client_summary
             try:
-                jit_id = search_clients_for_domain(domain, api_key)
+                summary = call_with_retry("get_client_summary", {"clientId": int(cm_id)}, api_key)
+                cache["by_client"].setdefault(domain, {})["client_summary"] = {
+                    "fetched_at": now_ts, "result": summary,
+                }
+                bucket["frontmatter_extra"] = cm_summary_to_frontmatter_extra(summary)
             except (CmTransportError, CmRpcError) as e:
-                _warn(
-                    f"JIT mapping failed for {domain} — set cm_client_id manually "
-                    f"or re-run --mode map-cm-clients ({type(e).__name__})",
-                    {"domain": domain, "phase": "jit-search", "error": str(e)},
+                _warn(f"CM stale ({domain}, get_client_summary): {type(e).__name__}",
+                      {"tool": "get_client_summary", "domain": domain, "error": str(e)})
+                cached = cache.get("by_client", {}).get(domain, {}).get("client_summary", {})
+                if cached.get("result"):
+                    bucket["frontmatter_extra"] = cm_summary_to_frontmatter_extra(cached["result"])
+                    bucket["stale_since"] = cached.get("fetched_at")
+                # else: frontmatter_extra stays None — render_cm_todos shows "unavailable"
+
+            # sla_status (per-client filter applied in render_usage)
+            try:
+                sla = call_with_retry("get_sla_status", {"clientId": int(cm_id)}, api_key)
+                cache["by_client"].setdefault(domain, {})["sla_status"] = {
+                    "fetched_at": now_ts, "result": sla,
+                }
+                bucket["sla_status"] = sla
+            except (CmTransportError, CmRpcError) as e:
+                _warn(f"CM stale ({domain}, get_sla_status): {type(e).__name__}",
+                      {"tool": "get_sla_status", "domain": domain, "error": str(e)})
+                cached = cache.get("by_client", {}).get(domain, {}).get("sla_status", {})
+                if cached.get("result"):
+                    bucket["sla_status"] = cached["result"]
+                    # stale_since stamped from whichever fallback fired first
+                    if bucket["stale_since"] is None:
+                        bucket["stale_since"] = cached.get("fetched_at")
+
+            out["by_domain"][domain] = bucket
+
+        # Persist cache (best-effort; failure here doesn't fail the sync)
+        try:
+            write_cache(cache_path, cache)
+        except Exception as e:
+            _warn(f"CM cache write failed: {type(e).__name__}",
+                  {"path": str(cache_path), "error": str(e)})
+
+    # ============================================================
+    # Phase 12: Workspace (Calendar + Drive) reads
+    # ============================================================
+    workspace_creds_dir = os.environ.get("GOOGLE_MCP_CREDENTIALS_DIR", "")
+    if not workspace_creds_dir:
+        # Graceful skip — Coolify env not yet set up for Workspace; log info, continue.
+        _warn(
+            "Workspace credentials path unset (GOOGLE_MCP_CREDENTIALS_DIR); "
+            "skipping Calendar+Drive reads",
+            {"tool": "workspace.skip", "phase": "credentials-precheck"},
+        )
+        return out
+
+    # Lazy import — Pitfall 1 invariant: Mac daemon's run_projection MUST NOT
+    # pull workspace_client into sys.modules. The import lives ONLY inside
+    # this orchestrator function. T-12-04-01 negative test enforces.
+    from .workspace_client import (
+        call_with_retry as ws_call_with_retry,
+        load_cache as ws_load_cache,
+        write_cache as ws_write_cache,
+        format_calendar_event_for_log,
+        _load_workspace_credentials,
+        _walk_drive_for_clients,
+        WorkspaceTransportError,
+        WorkspaceRpcError,
+        WorkspaceAuthExpiredError,
+    )
+    from datetime import timezone, timedelta
+
+    # Load OAuth access token; on credentials failure fall back to cache for
+    # both Calendar and Drive (they share the credential).
+    try:
+        access_token = _load_workspace_credentials()
+    except WorkspaceTransportError as e:
+        _warn(
+            f"Workspace credentials unavailable: {type(e).__name__}",
+            {"tool": "workspace.credentials", "error": str(e)},
+        )
+        access_token = None
+
+    now_local = datetime.now().astimezone()
+    time_min = (now_local - timedelta(days=90)).astimezone(timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    time_max = (now_local + timedelta(days=30)).astimezone(timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+    # ---- Calendar fetch ----
+    cal_cache_path = data_root / ".cal-cache.json"
+    cal_cache = ws_load_cache(cal_cache_path)
+    cal_cache.setdefault("global", {})
+    cal_cache.setdefault("by_client", {})
+    cal_stale_at: str | None = None
+    if access_token is None:
+        # Credentials failed → cache fallback (no live attempt possible).
+        cached_block = cal_cache.get("global", {}).get("calendar_events", {})
+        out["global_calendar"] = cached_block.get("result")
+        cal_stale_at = cached_block.get("fetched_at")
+    else:
+        cal_params = {
+            "timeMin": time_min,
+            "timeMax": time_max,
+            "maxResults": 250,
+            "singleEvents": "true",
+            "orderBy": "startTime",
+            "fields": "items(id,summary,start,end,attendees,visibility,htmlLink),nextPageToken",
+        }
+        primary_email = os.environ.get("GOOGLE_PRIMARY_EMAIL", "glen@iugo.com.au")
+        try:
+            try:
+                raw_cal = ws_call_with_retry(
+                    "calendar/v3/calendars/primary/events",
+                    cal_params, access_token,
                 )
-                out["by_domain"][domain] = bucket
-                continue
-            if jit_id is None:
-                _warn(
-                    f"JIT mapping failed for {domain} — set cm_client_id manually "
-                    f"or re-run --mode map-cm-clients (no CM match)",
-                    {"domain": domain, "phase": "jit-search", "error": "no-match"},
+            except WorkspaceAuthExpiredError:
+                # 401 mid-call → refresh + retry once.
+                access_token = _load_workspace_credentials()
+                raw_cal = ws_call_with_retry(
+                    "calendar/v3/calendars/primary/events",
+                    cal_params, access_token,
                 )
-                out["by_domain"][domain] = bucket
-                continue
-            # Persist the new id back to clients.jsonl (atomic, mirrors Plan 02 idiom).
-            jit_records: list[dict] = []
-            for rec in stream_ndjson(clients_path):
-                if rec.get("domain") == domain and rec.get("cm_client_id") is None:
-                    rec["cm_client_id"] = int(jit_id)
-                jit_records.append(rec)
-            jit_body = "\n".join(json.dumps(r, ensure_ascii=False) for r in jit_records) + "\n"
-            _atomic_write(clients_path, jit_body)
-            # Reflect the change in the in-memory `info` dict so downstream code sees it.
-            info["cm_client_id"] = int(jit_id)
-            cm_id = int(jit_id)
-            # Info-level feed entry: JIT-mapped {domain} → cm_client_id={N}
+            # Apply privacy filter adapter to each item; cache post-filter.
+            filtered_items = []
+            for raw in (raw_cal.get("items") or []):
+                f = format_calendar_event_for_log(raw, primary_email)
+                if f is not None:
+                    filtered_items.append(f)
+            cal_filtered = {"items": filtered_items}
+            cal_cache["global"]["calendar_events"] = {
+                "fetched_at": now_iso_with_offset(),
+                "result": cal_filtered,
+            }
+            out["global_calendar"] = cal_filtered
+        except (WorkspaceTransportError, WorkspaceRpcError) as e:
+            _warn(
+                f"Workspace stale (calendar/events): {type(e).__name__}",
+                {"tool": "calendar.events", "error": str(e)},
+            )
+            cached_block = cal_cache.get("global", {}).get("calendar_events", {})
+            out["global_calendar"] = cached_block.get("result")
+            cal_stale_at = cached_block.get("fetched_at")
+
+    # ---- Drive fetch ----
+    drive_cache_path = data_root / ".drive-cache.json"
+    drive_cache = ws_load_cache(drive_cache_path)
+    drive_cache.setdefault("global", {})
+    drive_cache.setdefault("by_client", {})
+    drive_stale_at: str | None = None
+    if access_token is None:
+        cached_block = drive_cache.get("global", {}).get("drive_files", {})
+        out["global_drive"] = cached_block.get("result")
+        drive_stale_at = cached_block.get("fetched_at")
+    else:
+        try:
+            try:
+                drive_filtered = _walk_drive_for_clients(access_token)
+            except WorkspaceAuthExpiredError:
+                access_token = _load_workspace_credentials()
+                drive_filtered = _walk_drive_for_clients(access_token)
+            drive_cache["global"]["drive_files"] = {
+                "fetched_at": now_iso_with_offset(),
+                "result": drive_filtered,
+            }
+            out["global_drive"] = drive_filtered
+        except (WorkspaceTransportError, WorkspaceRpcError) as e:
+            _warn(
+                f"Workspace stale (drive/files): {type(e).__name__}",
+                {"tool": "drive.files", "error": str(e)},
+            )
+            cached_block = drive_cache.get("global", {}).get("drive_files", {})
+            out["global_drive"] = cached_block.get("result")
+            drive_stale_at = cached_block.get("fetched_at")
+
+    # ---- workspace_stale_since: older of cal/drive cached timestamps ----
+    stale_candidates = [s for s in (cal_stale_at, drive_stale_at) if s]
+    if stale_candidates:
+        out["workspace_stale_since"] = min(stale_candidates)
+
+    # ---- Stop-list-only counter (D-A4-REVISED summary feed entry) ----
+    # Walk the (post-filter) drive files; for each that didn't match a
+    # client, check whether it matched a stop-list token (informational).
+    if out["global_drive"] is not None:
+        stop_skipped = 0
+        for raw_file in (out["global_drive"].get("files") or []):
+            name = raw_file.get("name") or ""
+            name_lower = name.lower()
+            if _match_drive_filename_to_client(name, clients) is None:
+                if any(_has_word_boundary_match(name_lower, tok)
+                       for tok in _DRIVE_FILENAME_STOP_LIST):
+                    stop_skipped += 1
+        out["drive_stop_list_skipped"] = stop_skipped
+        if stop_skipped > 0:
+            # ONE info-level entry per sync — not per-file.
             append_feed_entry(
                 {
                     "ts": now_iso_with_offset(),
                     "type": "system",
-                    "summary": f"JIT-mapped {domain} -> cm_client_id={cm_id}",
+                    "summary": (f"Phase 12 Drive: {stop_skipped} stop-list-only "
+                                f"filename matches skipped"),
                     "level": "info",
                     "trigger": "hook",
-                    "details": {"domain": domain, "cm_client_id": cm_id, "phase": "jit-search"},
+                    "details": {"phase": "drive-stop-list",
+                                "skipped_count": stop_skipped},
                 },
                 feed_path=feed_path,
             )
 
-        # client_summary
+    # ---- Persist Workspace caches (best-effort; failure here doesn't fail the sync) ----
+    for path, c in ((cal_cache_path, cal_cache), (drive_cache_path, drive_cache)):
         try:
-            summary = call_with_retry("get_client_summary", {"clientId": int(cm_id)}, api_key)
-            cache["by_client"].setdefault(domain, {})["client_summary"] = {
-                "fetched_at": now_ts, "result": summary,
-            }
-            bucket["frontmatter_extra"] = cm_summary_to_frontmatter_extra(summary)
-        except (CmTransportError, CmRpcError) as e:
-            _warn(f"CM stale ({domain}, get_client_summary): {type(e).__name__}",
-                  {"tool": "get_client_summary", "domain": domain, "error": str(e)})
-            cached = cache.get("by_client", {}).get(domain, {}).get("client_summary", {})
-            if cached.get("result"):
-                bucket["frontmatter_extra"] = cm_summary_to_frontmatter_extra(cached["result"])
-                bucket["stale_since"] = cached.get("fetched_at")
-            # else: frontmatter_extra stays None — render_cm_todos shows "unavailable"
-
-        # sla_status (per-client filter applied in render_usage)
-        try:
-            sla = call_with_retry("get_sla_status", {"clientId": int(cm_id)}, api_key)
-            cache["by_client"].setdefault(domain, {})["sla_status"] = {
-                "fetched_at": now_ts, "result": sla,
-            }
-            bucket["sla_status"] = sla
-        except (CmTransportError, CmRpcError) as e:
-            _warn(f"CM stale ({domain}, get_sla_status): {type(e).__name__}",
-                  {"tool": "get_sla_status", "domain": domain, "error": str(e)})
-            cached = cache.get("by_client", {}).get(domain, {}).get("sla_status", {})
-            if cached.get("result"):
-                bucket["sla_status"] = cached["result"]
-                # stale_since stamped from whichever fallback fired first
-                if bucket["stale_since"] is None:
-                    bucket["stale_since"] = cached.get("fetched_at")
-
-        out["by_domain"][domain] = bucket
-
-    # Persist cache (best-effort; failure here doesn't fail the sync)
-    try:
-        write_cache(cache_path, cache)
-    except Exception as e:
-        _warn(f"CM cache write failed: {type(e).__name__}",
-              {"path": str(cache_path), "error": str(e)})
+            ws_write_cache(path, c)
+        except Exception as e:
+            _warn(
+                f"Workspace cache write failed: {type(e).__name__}",
+                {"path": str(path), "error": str(e)},
+            )
 
     return out
+
+
+# Phase 11 backward-compat alias (preserves the 17 existing Phase 11 tests that import
+# the original name). Phase 12 callers use _fetch_external_data_for_run directly.
+_fetch_cm_data_for_run = _fetch_external_data_for_run
 
 
 # =========================================================================
@@ -1791,12 +2003,14 @@ def run_projection(build_root: Path, icloud_root: Path, dry_run: bool = False,
     Returns: `{"projected": int, "skipped_marker_error": int,
                "skipped_icloud_placeholder": int, "created_new": int}`.
 
-    INVARIANT (Phase 11 Pitfall 1 — T-11-04-01): This function MUST NOT import or
-    call cm_client. The Mac daemon runs `--mode project-to-icloud` and has no CM
-    API key. Any future contributor adding a CM call here breaks the design and
-    produces URLError noise on Mac sync logs. Negative test:
-    TestProjectionDoesNotImportCm spawns a fresh Python subprocess and asserts
-    `scripts.lib.cm_client` is NOT in `sys.modules` after run_projection returns.
+    INVARIANT (Phase 11 Pitfall 1 — T-11-04-01, extended Phase 12 — T-12-04-01):
+    This function MUST NOT import or call cm_client OR workspace_client. The Mac
+    daemon runs `--mode project-to-icloud` and has neither a CM API key nor a
+    Workspace OAuth blob. Any future contributor adding either call here breaks
+    the design and produces URLError / FileNotFoundError noise on Mac sync logs.
+    Negative tests: TestProjectionDoesNotImportCm AND TestProjectionDoesNotImportWorkspace
+    each spawn a fresh Python subprocess and assert the respective module is NOT
+    in `sys.modules` after run_projection returns.
     """
     # Issue 8: serialize concurrent projections (fswatch+xargs may spawn N
     # parallel Pythons; we want sequential — each waiter reads disk at acquire
@@ -2049,13 +2263,14 @@ __all__ = [
     # importable for tests").
     "_normalize_invoice_number", "_clientid_to_slug",
     "_cm_contract_event_tuple", "_cm_invoice_event_tuple",
-    "_fetch_cm_data_for_run",
+    "_fetch_cm_data_for_run",  # Phase 11 backward-compat alias
     # Phase 12 helpers (intentionally exported for testability per existing
     # MarkerError / Phase 11 cm helpers pattern).
     "_match_drive_filename_to_client", "_has_word_boundary_match",
     "_route_calendar_event_to_slug",
     "_cal_meeting_event_tuple", "_drive_doc_event_tuple",
     "_DRIVE_FILENAME_STOP_LIST",
+    "_fetch_external_data_for_run",  # Phase 12 renamed orchestrator
     "main",
 ]
 
