@@ -32,6 +32,15 @@ fi
 # only fires on Coolify. The ${VAR:?msg} idiom aborts with the msg if VAR is unset OR empty.
 : "${CONTRACT_MANAGER_API_KEY:?CONTRACT_MANAGER_API_KEY env var required (set on Coolify; not on Mac)}"
 
+# ----- Phase 12: Workspace (Calendar + Drive) OAuth credentials path validation -----
+# GOOGLE_MCP_CREDENTIALS_DIR points to the directory holding the OAuth blob originally
+# minted by the hardened-workspace MCP (typically ~/.google_workspace_mcp/credentials/).
+# Phase 12's workspace_client.py reads this blob to authenticate Calendar + Drive REST calls
+# (per D-X1 architectural decision; see 12-CONTEXT.md). Mac daemon does NOT run this wrapper
+# (Phase 11 Pitfall 1 inheritance); the validation only fires on Coolify, identical to the
+# CM API key check above.
+: "${GOOGLE_MCP_CREDENTIALS_DIR:?GOOGLE_MCP_CREDENTIALS_DIR env var required (path to OAuth credentials dir; set on Coolify; not on Mac)}"
+
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOCK_FILE="$REPO_ROOT/scripts/.vault-sync.lock"
 DATA_ROOT="$REPO_ROOT/data"

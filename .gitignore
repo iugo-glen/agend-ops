@@ -32,3 +32,7 @@ scripts/.vault-sync.lock
 
 # Phase 11: Contract Manager response cache (per-host runtime state, fallback only — D-F1)
 data/.cm-cache.json
+
+# Phase 12: Workspace (Calendar + Drive) response caches (per-host runtime state, fallback only — mirrors D-F1)
+data/.cal-cache.json
+data/.drive-cache.json
