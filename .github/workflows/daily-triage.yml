@@ -43,18 +43,20 @@
 name: Scheduled Triage
 
 on:
-  schedule:
-    # All times ACST (UTC+9:30) mapped to UTC for weekdays Mon-Fri ACST
-    # Per D-01: every 2 hours during business hours
-    # Per D-02: ACST timezone (Adelaide)
-    # Per D-03: weekdays only
-    - cron: '30 21 * * 0-4'  # 07:00 ACST (Mon-Fri) = 21:30 UTC (Sun-Thu)
-    - cron: '30 23 * * 0-4'  # 09:00 ACST (Mon-Fri) = 23:30 UTC (Sun-Thu)
-    - cron: '30 1 * * 1-5'   # 11:00 ACST (Mon-Fri) = 01:30 UTC (Mon-Fri)
-    - cron: '30 3 * * 1-5'   # 13:00 ACST (Mon-Fri) = 03:30 UTC (Mon-Fri)
-    - cron: '30 5 * * 1-5'   # 15:00 ACST (Mon-Fri) = 05:30 UTC (Mon-Fri)
-    - cron: '30 7 * * 1-5'   # 17:00 ACST (Mon-Fri) = 07:30 UTC (Mon-Fri)
-  workflow_dispatch: {}       # Manual trigger for testing
+  # Cron schedule disabled 2026-05-21 — manual /triage-inbox runs cover the
+  # need and the required GitHub Actions secrets (PAT_TOKEN, ANTHROPIC_API_KEY,
+  # GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN) were never provisioned. To re-enable,
+  # configure those five secrets and restore the `schedule:` block below.
+  #
+  # Original schedule (kept for reference, reinstate when re-enabling):
+  #   schedule:
+  #     - cron: '30 21 * * 0-4'  # 07:00 ACST (Mon-Fri) = 21:30 UTC (Sun-Thu)
+  #     - cron: '30 23 * * 0-4'  # 09:00 ACST (Mon-Fri) = 23:30 UTC (Sun-Thu)
+  #     - cron: '30 1 * * 1-5'   # 11:00 ACST (Mon-Fri) = 01:30 UTC (Mon-Fri)
+  #     - cron: '30 3 * * 1-5'   # 13:00 ACST (Mon-Fri) = 03:30 UTC (Mon-Fri)
+  #     - cron: '30 5 * * 1-5'   # 15:00 ACST (Mon-Fri) = 05:30 UTC (Mon-Fri)
+  #     - cron: '30 7 * * 1-5'   # 17:00 ACST (Mon-Fri) = 07:30 UTC (Mon-Fri)
+  workflow_dispatch: {}       # Manual trigger only
 
 permissions:
   contents: write

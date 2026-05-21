@@ -17,6 +17,8 @@ A personal operations hub for the founder of Agend Systems — a small tech comp
 - **Incremental**: Must be buildable incrementally — email triage first, then task execution, then dashboard
 <!-- GSD:project-end -->
 
+> **STACK NOTE (overrides outdated GSD content below):** The dashboard migrated from "Plain HTML/CSS/JS" to **Next.js 16 + React 19 + Tailwind 4 + NextAuth 5**, deployed to Coolify (not GitHub Pages). The static `docs/` site still exists for the GitHub Pages glance view, but `dashboard/` is the active product surface. See `dashboard/package.json` and `dashboard/AGENTS.md` for current truth. The Technology Stack table below is historical research from project inception — do not treat its "avoid SPA frameworks" guidance as current.
+
 <!-- GSD:stack-start source:research/STACK.md -->
 ## Technology Stack
 
@@ -129,6 +131,20 @@ Conventions not yet established. Will populate as patterns emerge during develop
 Architecture not yet mapped. Follow existing patterns found in the codebase.
 <!-- GSD:architecture-end -->
 
+## Repo Layout
+
+- `data/` — source of truth: NDJSON activity feed, per-day triage files, tasks, todos, invoices, briefings, action queue
+- `docs/` — compiled JSON + static HTML for the GitHub Pages glance dashboard (built from `data/` via `scripts/build-dashboard-data.sh`)
+- `dashboard/` — Next.js 16 server-rendered dashboard (separate from `docs/`; deployed to Coolify at `103.249.238.17:/opt/agend-ops`, NextAuth-gated). See `dashboard/AGENTS.md` before editing.
+- `schemas/` — JSON Schemas for every NDJSON record type; check here before adding fields
+- `scripts/` — bash automation (build-dashboard-data, validate-data, push-and-sync, sync-obsidian)
+- `vault-build/` — generated Obsidian vault synced from `data/` (D-17a transport rail; managed output, do not hand-edit)
+- `mac/` — launchd plist + watcher for the local vault-sync daemon
+- `.claude/commands/` — slash command definitions (the canonical contract for what each `/command` does)
+- `.claude/agents/` — subagent definitions (`email-scanner`, `task-executor`)
+- `.github/workflows/daily-triage.yml` — scheduled cron-triggered triage (ACST business hours)
+- `.planning/` — GSD planning artifacts (PROJECT.md, ROADMAP.md, STATE.md, phase dirs)
+
 ## MCP Server Usage
 
 CRITICAL: Use ONLY the `hardened-workspace` MCP server for Gmail and Drive access.
@@ -159,15 +175,32 @@ fork and is the primary defense against prompt injection attacks.
 - Dashboard data: Run `scripts/build-dashboard-data.sh` to compile NDJSON into `docs/feed.json` and `docs/tasks.json`
 - Server sync: After committing data changes, run `bash scripts/push-and-sync.sh` instead of `git push` to push AND sync the Coolify server at 103.249.238.17 (/opt/agend-ops)
 
+## Scripts
+
+- `bash scripts/validate-data.sh` — per-line JSON validation of all NDJSON files; run before committing data changes
+- `bash scripts/build-dashboard-data.sh` — compile NDJSON → `docs/*.json` (run before serving the static dashboard)
+- `bash scripts/push-and-sync.sh` — `git push` + remote Coolify pull; use instead of plain `git push` when data changes
+- `bash scripts/sync-obsidian.sh` — regenerate `vault-build/` from `data/` (with `--backfill` or `--incremental`)
+
+Next.js dashboard (in `dashboard/`): `npm run dev | build | start | lint`
+
 ## Commands
 
-Custom operations available as slash commands:
+Custom operations available as slash commands (see `.claude/commands/` for full definitions):
 
-- `/status` -- Quick summary: recent activity count, triage runs, pending tasks
-- `/task <description>` -- Create and execute a task via task-executor subagent. Supports: `/task` (show queue), `/task run id` (execute pending), `/task list` (show all), `/task natural language` (create + execute)
-- `/feed [count]` -- Show recent activity feed entries (default: 10)
-- `/triage-inbox` -- Scan Gmail inbox via email-scanner subagent: categorize emails, generate draft replies, detect action items, auto-queue actionable items as pending tasks
-- `/process-queue` -- Process pending actions queued from the interactive dashboard (mark-paid, complete-todo, complete-task, trigger-triage)
+- `/status` — quick summary: recent activity count, triage runs, pending tasks
+- `/feed [count]` — show recent activity feed entries (default: 10)
+- `/task <description>` — create and execute a task via the `task-executor` subagent. Also supports `/task` (show queue), `/task run <id>`, `/task list`
+- `/todo` — add, complete, list, and prioritize personal to-do items
+- `/triage-inbox` — scan Gmail via the `email-scanner` subagent: categorize, draft replies, auto-queue actionable items
+- `/process-queue` — process pending actions from the dashboard (mark-paid, complete-todo, complete-task, trigger-triage)
+- `/daily-briefing` — generate the morning briefing from existing data
+- `/invoice` — create, list, mark-paid, sync, and track invoices
+- `/sync-obsidian` — sync `vault-build/` from `data/` NDJSON history
+
+## Scheduled Automation
+
+`.github/workflows/daily-triage.yml` exists for unattended `/triage-inbox` + `/daily-briefing` runs, but the **cron schedule is currently disabled** (manual `workflow_dispatch` only). It was disabled 2026-05-21 because the required secrets (`PAT_TOKEN`, `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN`) were never provisioned and 30+ scheduled runs failed at the checkout step. The original cron block (every 2 hours on ACST weekdays, with the ACST↔UTC mapping table) is preserved as comments in the workflow file. To re-enable: configure the five secrets and uncomment the `schedule:` block. Note the workflow uses `secrets.PAT_TOKEN` (not default `GITHUB_TOKEN`) due to claude-code-action OIDC bug #814.
 
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
